@@ -129,6 +129,62 @@ export const REBUT_SCHEMA = {
 } as const
 
 const TIMEOUT_MS = 60_000
+const MAX_TOKENS = 4096
+
+/** Pull a readable message out of an OpenRouter-style error body. */
+function apiErrorMessage(text: string, fallback: string): string {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (isRecord(parsed) && isRecord(parsed.error)) {
+      const msg = parsed.error.message
+      const code = parsed.error.code
+      if (typeof msg === 'string' && msg) {
+        return code ? `${msg}（${String(code)}）` : msg
+      }
+    }
+  } catch {
+    // Not JSON — fall through to the raw text.
+  }
+  return text ? `${fallback}: ${text.slice(0, 300)}` : fallback
+}
+
+/**
+ * Describe an empty-content reply so the cause is visible at a glance:
+ * finish_reason (e.g. length = hit max_tokens), refusal, how many
+ * reasoning tokens were spent, and whether any reasoning content came back.
+ */
+function describeEmptyContent(data: unknown): string {
+  if (!isRecord(data)) return '回應唔係 JSON'
+  const choice = Array.isArray(data.choices)
+    ? (data.choices[0] as Record<string, unknown> | undefined)
+    : undefined
+  const message =
+    choice && isRecord(choice.message) ? choice.message : null
+  const usage = isRecord(data.usage) ? data.usage : null
+  const details =
+    usage && isRecord(usage.completion_tokens_details)
+      ? usage.completion_tokens_details
+      : null
+  const parts: string[] = []
+  if (typeof choice?.finish_reason === 'string') {
+    parts.push(`finish_reason=${choice.finish_reason}`)
+  }
+  if (message && typeof message.refusal === 'string' && message.refusal) {
+    parts.push(`refusal=${String(message.refusal).slice(0, 120)}`)
+  }
+  if (details && typeof details.reasoning_tokens === 'number') {
+    parts.push(`reasoning_tokens=${details.reasoning_tokens}`)
+  }
+  const reasoning = message?.reasoning
+  const hasReasoning =
+    (typeof reasoning === 'string' && reasoning.length > 0) ||
+    (Array.isArray(reasoning) && reasoning.length > 0)
+  parts.push(hasReasoning ? '有 reasoning 內容' : '無 reasoning 內容')
+  if (usage && typeof usage.completion_tokens === 'number') {
+    parts.push(`completion_tokens=${usage.completion_tokens}`)
+  }
+  return parts.length > 0 ? parts.join('，') : '原因不明'
+}
 
 interface ChatMessage {
   role: 'system' | 'user'
@@ -237,26 +293,48 @@ async function chatCompletion<T>(
     headers['X-Title'] = 'CaLoMei Clone'
   }
 
-  const bodyBase = {
+  // Reasoning effort (OpenRouter only; default 'none' — reasoning tokens
+  // count against max_tokens, and a reasoning-heavy model can burn the
+  // whole budget before emitting any JSON, which is exactly how
+  // 「模型無回傳內容」 happened on deepseek-v4.1-flash).
+  const effort = config.reasoningEffort ?? 'none'
+  const withReasoning =
+    config.provider === 'openrouter' && effort !== 'default'
+
+  const makeBodyBase = (includeReasoning: boolean) => ({
     model: config.model,
     messages,
     temperature: 0.4,
-    max_tokens: 1200,
+    // 4096 (was 1200): reasoning models spend tokens thinking first;
+    // 1200 was not enough for a reasoning model to finish the JSON.
+    max_tokens: MAX_TOKENS,
+    ...(includeReasoning && withReasoning
+      ? { reasoning: { effort } }
+      : {}),
+  })
+
+  // Attempt 1: strict Structured Outputs. The schema is built from plain
+  // objects and JSON.stringify expands it inline — there is no top-level
+  // $ref / $defs to trip providers up. Some providers/models reject
+  // json_schema — then fall back to json_object + client-side validation.
+  // An empty-content reply on attempt 1 also falls back (it used to throw
+  // straight away, which hid the real cause).
+  const makeAttempts = (includeReasoning: boolean) => {
+    const base = makeBodyBase(includeReasoning)
+    return [
+      {
+        ...base,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: schemaName, strict: true, schema },
+        },
+      },
+      { ...base, response_format: { type: 'json_object' } },
+    ]
   }
 
-  // Attempt 1: strict Structured Outputs. Some providers/models reject
-  // json_schema — then fall back to json_object + client-side validation.
-  const attempts: Array<Record<string, unknown>> = [
-    {
-      ...bodyBase,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: schemaName, strict: true, schema },
-      },
-    },
-    { ...bodyBase, response_format: { type: 'json_object' } },
-  ]
-
+  let attempts = makeAttempts(true)
+  let reasoningStripped = false
   let lastError: Error | null = null
   for (let attempt = 0; attempt < attempts.length; attempt++) {
     const controller = new AbortController()
@@ -270,21 +348,59 @@ async function chatCompletion<T>(
       })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
+        const detail = apiErrorMessage(text, `HTTP ${res.status}`)
+        // A forced-reasoning model may 400 on reasoning: { effort: "none" }.
+        // Strip the reasoning field and retry the SAME response_format once.
+        if (
+          res.status === 400 &&
+          !reasoningStripped &&
+          'reasoning' in attempts[attempt]
+        ) {
+          reasoningStripped = true
+          attempts = makeAttempts(false)
+          lastError = new Error(`${detail}（已移除 reasoning 重試）`)
+          attempt--
+          continue
+        }
         // A 400 on the strict attempt usually means the model does not
         // support json_schema — try the json_object fallback once.
         if (res.status === 400 && attempt === 0) {
-          lastError = new Error(`HTTP 400: ${text.slice(0, 200)}`)
+          lastError = new Error(detail)
           continue
         }
-        throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+        throw new Error(detail)
       }
       const data = (await res.json()) as unknown
-      const content = isRecord(data)
-        ? (data.choices as Array<{ message?: { content?: string } }>)
-        : null
-      const text = content?.[0]?.message?.content
+      // Some providers return HTTP 200 with a top-level error object.
+      if (isRecord(data) && isRecord(data.error)) {
+        const msg =
+          typeof data.error.message === 'string'
+            ? data.error.message
+            : 'API 回傳錯誤'
+        throw new Error(`API 錯誤：${msg}`)
+      }
+      const choice = isRecord(data)
+        ? (
+            data.choices as Array<{
+              message?: {
+                content?: string | null
+                refusal?: string | null
+                reasoning?: unknown
+              }
+              finish_reason?: string
+            }>
+          )?.[0]
+        : undefined
+      const text = choice?.message?.content
       if (typeof text !== 'string' || !text.trim()) {
-        throw new Error('模型無回傳內容')
+        const detail = describeEmptyContent(data)
+        if (attempt === 0) {
+          lastError = new Error(
+            `模型無回傳內容（${detail}），已改用 json_object 重試`,
+          )
+          continue
+        }
+        throw new Error(`模型無回傳內容（${detail}）`)
       }
       const parsed: unknown = JSON.parse(text)
       if (!validate(parsed)) throw new Error('回傳 JSON 格式唔啱')

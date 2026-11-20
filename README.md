@@ -22,7 +22,7 @@ npm run preview    # 本地預覽生產 build
 
 ## 用法
 
-1. 開 App → 去「設定」輸入 Vision API Key（預設 OpenRouter + `openai/gpt-4o-mini`）。
+1. 開 App → 去「設定」輸入 Vision API Key（預設 OpenRouter + `openai/gpt-4o-mini`）。Model 有快捷選項（gpt-4o-mini、deepseek-v4.1-flash、gemini-2.5-flash）；OpenRouter 仲可以揀思考模式（預設關閉，避免推理模型食晒 max_tokens 出唔到 JSON）。
 2. 「影相」影低餐嘢 → AI 分析 → 結果頁可以改名、改卡路里、剔走唔計嘅嘢、糾正認錯嘅食物、加離線食物庫嘅嘢。影相頁有兩個模式：「影食物」同「影營養標籤」（影包裝背面，直接讀標籤數字）。
 3. 「記錄」睇返每日總數 vs 每日目標（Mifflin-St Jeor），仲有快速加水（+100/+250/+500 ml）、運動、體重／體脂記錄。
 4. 「設定」→ 語氣：揀老味 / 18+ / 仁慈 / 教會弟兄 / 媽咪 / 佛系，仲可以編輯每個語氣嘅 Prompt（存喺 Dexie，隨時重置返預設值）。「自訂每日目標」可以改卡路里、蛋白質、碳水、脂肪、糖上限、纖維下限、鈉上限（留空即係用預設值）。

@@ -479,6 +479,57 @@ export default function SettingsPage({
                 autoCorrect="off"
                 className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
               />
+              <span className="mt-2 flex flex-wrap gap-2">
+                {[
+                  'openai/gpt-4o-mini',
+                  'deepseek/deepseek-v4.1-flash',
+                  'gemini-2.5-flash',
+                ].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setVision({ ...vision, model: m })}
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${
+                      vision.model === m
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-stone-100 text-stone-600 active:bg-amber-100'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </span>
+            </label>
+            <label className="mt-3 block">
+              <span className="text-sm font-bold text-stone-600">
+                思考模式（OpenRouter 適用）
+              </span>
+              <select
+                value={vision.reasoningEffort ?? 'none'}
+                onChange={(e) =>
+                  setVision({
+                    ...vision,
+                    reasoningEffort: e.target.value as
+                      | 'none'
+                      | 'low'
+                      | 'default',
+                  })
+                }
+                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400"
+              >
+                <option value="none">
+                  關閉（唔思考，直接出答案）
+                </option>
+                <option value="low">低（輕量思考）</option>
+                <option value="default">
+                  跟模型預設（唔傳 reasoning 參數）
+                </option>
+              </select>
+              <span className="mt-1 block text-xs text-stone-400">
+                推理模型嘅思考過程會扣 max_tokens；關閉可以避免「模型無回傳內容」。只對
+                OpenRouter 生效；如果模型強制推理、唔接受關閉，App
+                會自動移除呢個參數重試一次。
+              </span>
             </label>
             <button
               type="button"

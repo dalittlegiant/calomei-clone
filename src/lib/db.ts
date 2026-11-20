@@ -206,6 +206,13 @@ export interface VisionProviderConfig {
   baseUrl: string
   apiKey: string
   model: string
+  /**
+   * OpenRouter reasoning effort (2026-11-21 fix for 「模型無回傳內容」):
+   * 'none' (default — disable reasoning, avoids reasoning tokens eating
+   * max_tokens), 'low' (light reasoning), 'default' (omit the reasoning
+   * parameter entirely, let the model decide). Only sent to OpenRouter.
+   */
+  reasoningEffort?: 'none' | 'low' | 'default'
 }
 
 export const PROVIDER_PRESETS: Record<
@@ -234,6 +241,7 @@ export const DEFAULT_VISION_CONFIG: VisionProviderConfig = {
   baseUrl: PROVIDER_PRESETS.openrouter.baseUrl,
   apiKey: '',
   model: PROVIDER_PRESETS.openrouter.model,
+  reasoningEffort: 'none',
 }
 
 export function defaultProfile(): UserProfile {
@@ -326,7 +334,13 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
 }
 
 export async function getVisionConfig(): Promise<VisionProviderConfig> {
-  return getSetting<VisionProviderConfig>('vision', DEFAULT_VISION_CONFIG)
+  // Merge over the defaults so configs saved before a new field existed
+  // (e.g. reasoningEffort) still get the current default.
+  const stored = await getSetting<VisionProviderConfig>(
+    'vision',
+    DEFAULT_VISION_CONFIG,
+  )
+  return { ...DEFAULT_VISION_CONFIG, ...stored }
 }
 
 export async function getOrCreateProfile(): Promise<UserProfile> {
