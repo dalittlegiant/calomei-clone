@@ -2,17 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
+  getHealthShortcutName,
   type FoodComponent,
   type FoodEntry,
   type VisionProviderConfig,
 } from '../lib/db'
 import { MEAL_LABELS } from '../lib/image'
-import { correctFood } from '../lib/vision'
+import { isoDate, openHealthShortcut } from '../lib/health'
+import { correctFood, rebutRoast } from '../lib/vision'
 import { macrosForGrams, searchFoods, type LocalFoodItem } from '../lib/foodDb'
 
 interface Props {
   entryId: string
   visionConfig: VisionProviderConfig
+  /** Current tone's system prompt (for the rebuttal call). */
+  tonePrompt: string
+  /** Current tone's API value, e.g. 'normal'. */
+  toneApiValue: string
   onBack: () => void
   onDeleted: () => void
 }
@@ -29,7 +35,15 @@ function componentsFromEntry(entry: {
   if (entry.componentsJson) {
     try {
       const parsed = JSON.parse(entry.componentsJson) as FoodComponent[]
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Old entries lack sugar/fiber/sodium — default to 0.
+        return parsed.map((c) => ({
+          sugarG: 0,
+          fiberG: 0,
+          sodiumMg: 0,
+          ...c,
+        }))
+      }
     } catch {
       // fall through to single-item fallback
     }
@@ -44,6 +58,9 @@ function componentsFromEntry(entry: {
       carbsG: entry.carbsG,
       fatG: entry.fatG,
       confidence: 1,
+      sugarG: 0,
+      fiberG: 0,
+      sodiumMg: 0,
       isExcluded: false,
     },
   ]
@@ -52,6 +69,8 @@ function componentsFromEntry(entry: {
 export default function ResultPage({
   entryId,
   visionConfig,
+  tonePrompt,
+  toneApiValue,
   onBack,
   onDeleted,
 }: Props) {
@@ -65,6 +84,10 @@ export default function ResultPage({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<LocalFoodItem[]>([])
   const [searching, setSearching] = useState(false)
+  const [rebuttal, setRebuttal] = useState('')
+  const [rebutting, setRebutting] = useState(false)
+  const [rebutError, setRebutError] = useState<string | null>(null)
+  const [healthMsg, setHealthMsg] = useState<string | null>(null)
 
   // Load components when the entry (or its saved JSON) changes.
   useEffect(() => {
@@ -78,6 +101,9 @@ export default function ResultPage({
       proteinG: round1(kept.reduce((a, i) => a + i.proteinG, 0)),
       carbsG: round1(kept.reduce((a, i) => a + i.carbsG, 0)),
       fatG: round1(kept.reduce((a, i) => a + i.fatG, 0)),
+      sugarG: round1(kept.reduce((a, i) => a + (i.sugarG ?? 0), 0)),
+      fiberG: round1(kept.reduce((a, i) => a + (i.fiberG ?? 0), 0)),
+      sodiumMg: Math.round(kept.reduce((a, i) => a + (i.sodiumMg ?? 0), 0)),
     }
   }, [items])
 
@@ -124,11 +150,92 @@ export default function ResultPage({
       proteinG: totals.proteinG,
       carbsG: totals.carbsG,
       fatG: totals.fatG,
+      sugarG: totals.sugarG,
+      fiberG: totals.fiberG,
+      sodiumMg: totals.sodiumMg,
       servingSize: kept[0]?.portionDescription ?? '',
       componentsJson: JSON.stringify(current),
     })
     setSavedTick((t) => t + 1)
   }
+
+  async function onRebut() {
+    if (
+      !rebuttal.trim() ||
+      !loadedEntry.imageDataUrl ||
+      !loadedEntry.roastComment ||
+      rebutting
+    )
+      return
+    setRebutting(true)
+    setRebutError(null)
+    try {
+      const base64 = loadedEntry.imageDataUrl.split(',')[1] ?? ''
+      const result = await rebutRoast(
+        {
+          image_base64: base64,
+          original_roast: loadedEntry.roastComment,
+          rebuttal: rebuttal.trim(),
+          region: 'hk',
+          tone_mode: toneApiValue,
+        },
+        visionConfig,
+        tonePrompt,
+      )
+      // Keep the old roast in history (feeds previous_roasts on later scans).
+      const history: string[] = (() => {
+        try {
+          const parsed = JSON.parse(
+            loadedEntry.roastHistoryJson ?? '[]',
+          ) as unknown
+          return Array.isArray(parsed)
+            ? (parsed.filter((x) => typeof x === 'string') as string[])
+            : []
+        } catch {
+          return []
+        }
+      })()
+      history.push(loadedEntry.roastComment)
+      await db.food_entries.update(entryId, {
+        roastComment: result.roast_comment,
+        roastHistoryJson: JSON.stringify(history.slice(-10)),
+      })
+      setRebuttal('')
+    } catch (e) {
+      setRebutError(e instanceof Error ? e.message : '駁唔到，請再試一次。')
+    } finally {
+      setRebutting(false)
+    }
+  }
+
+  async function onExportHealth() {
+    const name = await getHealthShortcutName()
+    openHealthShortcut(name, {
+      type: 'meal',
+      date: isoDate(loadedEntry.date),
+      name: loadedEntry.name,
+      calories: totals.calories,
+      protein_g: totals.proteinG,
+      carbs_g: totals.carbsG,
+      fat_g: totals.fatG,
+      sugar_g: totals.sugarG,
+      fiber_g: totals.fiberG,
+      sodium_mg: totals.sodiumMg,
+    })
+    setHealthMsg(`已交去 iOS 捷徑「${name}」（只適用於 iOS）`)
+    window.setTimeout(() => setHealthMsg(null), 4000)
+  }
+
+  const roastHistory: string[] = (() => {
+    try {
+      const parsed = JSON.parse(loadedEntry.roastHistoryJson ?? '[]') as unknown
+      return Array.isArray(parsed)
+        ? (parsed.filter((x) => typeof x === 'string') as string[])
+        : []
+    } catch {
+      return []
+    }
+  })()
 
   async function onCorrect() {
     const titles = correctTitles
@@ -141,7 +248,12 @@ export default function ResultPage({
     try {
       const base64 = loadedEntry.imageDataUrl.split(',')[1] ?? ''
       const result = await correctFood(
-        { image_base64: base64, food_titles: titles, region: 'hk' },
+        {
+          image_base64: base64,
+          food_titles: titles,
+          region: 'hk',
+          tone_mode: toneApiValue,
+        },
         visionConfig,
       )
       const next: FoodComponent[] = result.food_items.map((item) => ({
@@ -153,6 +265,9 @@ export default function ResultPage({
         carbsG: item.carbs_g,
         fatG: item.fat_g,
         confidence: item.confidence,
+        sugarG: item.sugar_g ?? 0,
+        fiberG: item.fiber_g ?? 0,
+        sodiumMg: item.sodium_mg ?? 0,
         isExcluded: false,
       }))
       setItems(next)
@@ -196,6 +311,9 @@ export default function ResultPage({
       carbsG: m.carbsG,
       fatG: m.fatG,
       confidence: 1,
+      sugarG: 0,
+      fiberG: 0,
+      sodiumMg: 0,
       isExcluded: false,
     }
     setItems((prev) => [...(prev ?? componentsFromEntry(loadedEntry)), next])
@@ -241,6 +359,18 @@ export default function ResultPage({
             {loadedEntry.roastEmoji ?? '💬'} {MEAL_LABELS[loadedEntry.mealType as keyof typeof MEAL_LABELS] ?? loadedEntry.mealType} · {dateStr}
           </p>
           <p className="mt-1 leading-relaxed">{loadedEntry.roastComment}</p>
+          {roastHistory.length > 0 && (
+            <details className="mt-2 text-sm text-amber-800/70">
+              <summary className="cursor-pointer font-bold">
+                之前嘅評語（{roastHistory.length}）
+              </summary>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {roastHistory.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       )}
 
@@ -253,6 +383,9 @@ export default function ResultPage({
         </div>
         <p className="mt-1 text-sm text-stone-500">
           蛋白質 {totals.proteinG}g · 碳水 {totals.carbsG}g · 脂肪 {totals.fatG}g
+        </p>
+        <p className="mt-0.5 text-sm text-stone-500">
+          糖 {totals.sugarG}g · 纖維 {totals.fiberG}g · 鈉 {totals.sodiumMg}mg
         </p>
 
         <div className="mt-3 space-y-3">
@@ -355,6 +488,44 @@ export default function ResultPage({
                     className="mt-0.5 w-full rounded-lg border border-stone-200 bg-white px-2 py-1 outline-none focus:border-amber-400"
                   />
                 </label>
+                <label>
+                  <span className="text-xs text-stone-500">糖 g</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={item.sugarG ?? 0}
+                    onChange={(e) =>
+                      updateItem(i, { sugarG: Number(e.target.value) || 0 })
+                    }
+                    className="mt-0.5 w-full rounded-lg border border-stone-200 bg-white px-2 py-1 outline-none focus:border-amber-400"
+                  />
+                </label>
+                <label>
+                  <span className="text-xs text-stone-500">纖維 g</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={item.fiberG ?? 0}
+                    onChange={(e) =>
+                      updateItem(i, { fiberG: Number(e.target.value) || 0 })
+                    }
+                    className="mt-0.5 w-full rounded-lg border border-stone-200 bg-white px-2 py-1 outline-none focus:border-amber-400"
+                  />
+                </label>
+                <label>
+                  <span className="text-xs text-stone-500">鈉 mg</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={item.sodiumMg ?? 0}
+                    onChange={(e) =>
+                      updateItem(i, { sodiumMg: Number(e.target.value) || 0 })
+                    }
+                    className="mt-0.5 w-full rounded-lg border border-stone-200 bg-white px-2 py-1 outline-none focus:border-amber-400"
+                  />
+                </label>
                 <span className="self-end text-xs text-stone-400">
                   可信度 {Math.round(item.confidence * 100)}%
                 </span>
@@ -370,7 +541,54 @@ export default function ResultPage({
         >
           💾 儲存呢餐
         </button>
+
+        <button
+          type="button"
+          onClick={onExportHealth}
+          className="mt-2 w-full rounded-2xl bg-white py-3 font-bold text-red-500 ring-1 ring-red-200 active:bg-red-50"
+        >
+          🍎 同步呢餐去 Apple Health
+        </button>
+        {healthMsg && (
+          <p className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-center text-sm text-green-700">
+            {healthMsg}
+          </p>
+        )}
+        <p className="mt-2 text-center text-xs text-stone-400">
+          經 iOS 捷徑寫入 Apple Health（只適用於 iOS；捷徑名喺「設定」改）
+        </p>
       </div>
+
+      {(loadedEntry.rebuttable ?? true) && loadedEntry.roastComment && (
+        <div className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
+          <h3 className="font-bold">😤 唔服？駁佢</h3>
+          <p className="mt-1 text-sm text-stone-500">
+            寫低你嘅反駁，AI 會用同一語氣回嘴一句。舊評語會留低，之後掃描唔會重複講。
+          </p>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={rebuttal}
+              onChange={(e) => setRebuttal(e.target.value)}
+              placeholder="例如：呢碟根本唔油，你睇錯啦"
+              className="min-w-0 flex-1 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            />
+            <button
+              type="button"
+              disabled={rebutting || !rebuttal.trim()}
+              onClick={onRebut}
+              className="rounded-xl bg-stone-800 px-4 py-2 font-bold text-white disabled:opacity-40"
+            >
+              {rebutting ? '駁緊…' : '駁佢'}
+            </button>
+          </div>
+          {rebutError && (
+            <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+              {rebutError}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
         <h3 className="font-bold">AI 認錯咗？糾正佢</h3>

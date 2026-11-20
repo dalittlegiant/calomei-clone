@@ -2,14 +2,26 @@
 // Mifflin-St Jeor BMR, activity multipliers, -15% for 減脂, protein 1.8 g/kg,
 // fat 25% of calories, carbs fill the rest.
 
-import type { UserProfile } from './db'
+import type { NutritionTargetOverride, UserProfile } from './db'
 
 export interface NutritionTarget {
   calories: number
   proteinG: number
   carbsG: number
   fatG: number
+  /** v1.7.0: daily sugar ceiling (g). */
+  sugarCeilingG: number
+  /** v1.7.0: daily fiber floor (g). */
+  fiberFloorG: number
+  /** v1.7.0: daily sodium ceiling (mg). */
+  sodiumCeilingMg: number
 }
+
+/** Standard-practice defaults: WHO free sugars <10% of energy (~50 g on a
+ * 2,000 kcal day), fiber ≥25 g/day, sodium ≤2,000 mg/day. */
+export const DEFAULT_SUGAR_CEILING_G = 50
+export const DEFAULT_FIBER_FLOOR_G = 25
+export const DEFAULT_SODIUM_CEILING_MG = 2000
 
 export const ACTIVITY_OPTIONS: Array<{
   value: string
@@ -55,5 +67,34 @@ export function dailyTarget(profile: UserProfile): NutritionTarget {
     0,
     Math.round((calories - proteinG * 4 - fatG * 9) / 4),
   )
-  return { calories, proteinG, carbsG, fatG }
+  return {
+    calories,
+    proteinG,
+    carbsG,
+    fatG,
+    sugarCeilingG: DEFAULT_SUGAR_CEILING_G,
+    fiberFloorG: DEFAULT_FIBER_FLOOR_G,
+    sodiumCeilingMg: DEFAULT_SODIUM_CEILING_MG,
+  }
+}
+
+/**
+ * Merge a custom override over the Mifflin default. Each non-null override
+ * field wins; null means "use the default". Pass null for no override.
+ */
+export function effectiveTarget(
+  profile: UserProfile,
+  override: NutritionTargetOverride | null | undefined,
+): NutritionTarget {
+  const base = dailyTarget(profile)
+  if (!override) return base
+  return {
+    calories: override.calories ?? base.calories,
+    proteinG: override.proteinG ?? base.proteinG,
+    carbsG: override.carbsG ?? base.carbsG,
+    fatG: override.fatG ?? base.fatG,
+    sugarCeilingG: override.sugarCeilingG ?? base.sugarCeilingG,
+    fiberFloorG: override.fiberFloorG ?? base.fiberFloorG,
+    sodiumCeilingMg: override.sodiumCeilingMg ?? base.sodiumCeilingMg,
+  }
 }

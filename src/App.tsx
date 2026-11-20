@@ -74,6 +74,8 @@ export default function App() {
           <ResultPage
             entryId={currentEntryId}
             visionConfig={vision}
+            tonePrompt={tonePrompt}
+            toneApiValue={tone.apiValue}
             onBack={() => setCurrentEntryId(null)}
             onDeleted={() => {
               setCurrentEntryId(null)

@@ -23,18 +23,32 @@ npm run preview    # 本地預覽生產 build
 ## 用法
 
 1. 開 App → 去「設定」輸入 Vision API Key（預設 OpenRouter + `openai/gpt-4o-mini`）。
-2. 「影相」影低餐嘢 → AI 分析 → 結果頁可以改名、改卡路里、剔走唔計嘅嘢、糾正認錯嘅食物、加離線食物庫嘅嘢。
-3. 「記錄」睇返每日總數 vs 每日目標（Mifflin-St Jeor）。
-4. 「設定」→ 語氣：揀老味 / 18+ / 仁慈 / 教會弟兄，仲可以編輯每個語氣嘅 Prompt（存喺 Dexie，隨時重置返預設值）。
+2. 「影相」影低餐嘢 → AI 分析 → 結果頁可以改名、改卡路里、剔走唔計嘅嘢、糾正認錯嘅食物、加離線食物庫嘅嘢。影相頁有兩個模式：「影食物」同「影營養標籤」（影包裝背面，直接讀標籤數字）。
+3. 「記錄」睇返每日總數 vs 每日目標（Mifflin-St Jeor），仲有快速加水（+100/+250/+500 ml）、運動、體重／體脂記錄。
+4. 「設定」→ 語氣：揀老味 / 18+ / 仁慈 / 教會弟兄 / 媽咪 / 佛系，仲可以編輯每個語氣嘅 Prompt（存喺 Dexie，隨時重置返預設值）。「自訂每日目標」可以改卡路里、蛋白質、碳水、脂肪、糖上限、纖維下限、鈉上限（留空即係用預設值）。
+
+## v1.7.0 移植（2026-11-21）
+
+跟原版 v1.7.0 移植：HK 新增媽咪、佛系兩個語氣；糖／纖維／鈉（Vision
+Schema + 結果頁顯示／編輯）；飲水、運動、體脂記錄；駁斥 Roast（結果頁「駁佢」，舊評語留低做
+`previous_roasts`）；營養標籤掃描；自訂每日目標（`nutrition_target_overrides`）。
+Dexie 升到 version(2)，舊數據會保留；備份格式升到 v2（包埋新表，舊版備份照樣還原到）。
+
+另外加咗「同步去 Apple Health」：經 iOS 捷徑 URL Scheme（`shortcuts://run-shortcut`）將一餐／飲水／體重包成
+JSON 交畀你自建嘅捷徑寫入 HealthKit。捷徑名喺「設定」→「Apple Health」改（預設
+`CaLoMeiToHealth`），嗰版有埋捷徑設定教學同 JSON 欄位表。
+
+明確唔做：TTS、條碼掃描、q50／512px 壓縮（維持 1024px + q70）、TDEE 問卷。
 
 ## 檔案
 
-- `src/config/prompts.ts` — 4 個語氣嘅預設 System Prompt + 糾正用 Prompt
-- `src/lib/db.ts` — Dexie schema + settings（Vision 設定、語氣 Prompt 覆寫）
+- `src/config/prompts.ts` — 6 個語氣嘅預設 System Prompt + 糾正／標籤／駁斥用 Prompt
+- `src/lib/db.ts` — Dexie schema（v2）+ settings（Vision 設定、語氣 Prompt 覆寫、捷徑名、自訂目標）
 - `src/lib/foodDb.ts` — 離線食物庫搜尋（每 100 克營養值）
+- `src/lib/health.ts` — Apple Health 匯出（iOS 捷徑 URL Scheme + JSON 欄位表）
 - `src/lib/image.ts` — Canvas 壓縮 + 三餐時間推斷
-- `src/lib/vision.ts` — VisionClient（OpenAI-compatible、Structured Outputs、驗證 + repair retry）
-- `src/lib/nutrition.ts` — Mifflin-St Jeor BMR/TDEE、每日目標
+- `src/lib/vision.ts` — VisionClient（OpenAI-compatible、Structured Outputs、驗證 + repair retry；掃描／糾正／駁斥／標籤）
+- `src/lib/nutrition.ts` — Mifflin-St Jeor BMR/TDEE、每日目標（含糖上限／纖維下限／鈉上限 + 自訂覆寫）
 - `src/pages/` — Scan（影相掃描）、Result（結果編輯／糾正）、History（記錄）、Settings（設定）
 - 設計文件：`~/workspace/rea/calomei/VISION_API_DESIGN.md`、`CLONE_SPEC.md`
 

@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   db,
+  DEFAULT_HEALTH_SHORTCUT_NAME,
+  getHealthShortcutName,
+  getTargetOverride,
   getTonePromptOverride,
   getVisionConfig,
   PROVIDER_PRESETS,
   resetTonePromptOverride,
+  setHealthShortcutName,
   setSetting,
+  setTargetOverride,
   setTonePromptOverride,
+  type NutritionTargetOverride,
   type UserProfile,
   type VisionProvider,
   type VisionProviderConfig,
@@ -17,7 +23,8 @@ import {
   TONES,
   type ToneMode,
 } from '../config/prompts'
-import { ACTIVITY_OPTIONS, dailyTarget } from '../lib/nutrition'
+import { ACTIVITY_OPTIONS, dailyTarget, effectiveTarget } from '../lib/nutrition'
+import { HEALTH_PAYLOAD_FIELDS } from '../lib/health'
 import {
   downloadBackup,
   exportBackup,
@@ -50,6 +57,28 @@ export default function SettingsPage({
   const [includeApiKey, setIncludeApiKey] = useState(false)
   const [importing, setImporting] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
+  const [targetForm, setTargetForm] = useState<{
+    calories: string
+    proteinG: string
+    carbsG: string
+    fatG: string
+    sugarCeilingG: string
+    fiberFloorG: string
+    sodiumCeilingMg: string
+  }>({
+    calories: '',
+    proteinG: '',
+    carbsG: '',
+    fatG: '',
+    sugarCeilingG: '',
+    fiberFloorG: '',
+    sodiumCeilingMg: '',
+  })
+  const [targetOverride, setTargetOverrideState] =
+    useState<NutritionTargetOverride | null>(null)
+  const [shortcutName, setShortcutName] = useState(
+    DEFAULT_HEALTH_SHORTCUT_NAME,
+  )
 
   useEffect(() => {
     setForm(profile)
@@ -58,6 +87,21 @@ export default function SettingsPage({
 
   useEffect(() => {
     getVisionConfig().then(setVision)
+    getTargetOverride().then((o) => {
+      setTargetOverrideState(o)
+      if (o) {
+        setTargetForm({
+          calories: o.calories?.toString() ?? '',
+          proteinG: o.proteinG?.toString() ?? '',
+          carbsG: o.carbsG?.toString() ?? '',
+          fatG: o.fatG?.toString() ?? '',
+          sugarCeilingG: o.sugarCeilingG?.toString() ?? '',
+          fiberFloorG: o.fiberFloorG?.toString() ?? '',
+          sodiumCeilingMg: o.sodiumCeilingMg?.toString() ?? '',
+        })
+      }
+    })
+    getHealthShortcutName().then(setShortcutName)
   }, [])
 
   useEffect(() => {
@@ -73,6 +117,7 @@ export default function SettingsPage({
   }, [tone])
 
   const target = dailyTarget(form)
+  const effective = effectiveTarget(form, targetOverride)
 
   function flash(msg: string) {
     setSavedMsg(msg)
@@ -84,6 +129,31 @@ export default function SettingsPage({
     await db.user_profiles.put(next)
     onProfileSaved(next)
     flash('個人檔案已儲存')
+  }
+
+  /** Blank input = null = use the Mifflin default for that field. */
+  function numOrNull(s: string): number | null {
+    const n = Number(s)
+    return s.trim() === '' || !Number.isFinite(n) || n < 0 ? null : n
+  }
+
+  async function saveTargets() {
+    const next = await setTargetOverride({
+      calories: numOrNull(targetForm.calories),
+      proteinG: numOrNull(targetForm.proteinG),
+      carbsG: numOrNull(targetForm.carbsG),
+      fatG: numOrNull(targetForm.fatG),
+      sugarCeilingG: numOrNull(targetForm.sugarCeilingG),
+      fiberFloorG: numOrNull(targetForm.fiberFloorG),
+      sodiumCeilingMg: numOrNull(targetForm.sodiumCeilingMg),
+    })
+    setTargetOverrideState(next)
+    flash('自訂每日目標已儲存')
+  }
+
+  async function saveShortcutName() {
+    await setHealthShortcutName(shortcutName)
+    flash('捷徑名已儲存')
   }
 
   async function saveVision() {
@@ -138,7 +208,7 @@ export default function SettingsPage({
       }
       onPromptSaved()
       flash(
-        `還原完成：${result.counts.entries} 餐記錄、${result.counts.weights} 個體重記錄、${result.counts.profiles} 個檔案`,
+        `還原完成：${result.counts.entries} 餐記錄、${result.counts.weights} 個體重記錄、${result.counts.water} 筆飲水、${result.counts.exercise} 筆運動、${result.counts.profiles} 個檔案`,
       )
     } catch (e) {
       flash(e instanceof Error ? `還原失敗：${e.message}` : '還原失敗')
@@ -155,6 +225,10 @@ export default function SettingsPage({
     }
     await db.food_entries.clear()
     await db.weight_entries.clear()
+    await db.water_entries.clear()
+    await db.exercise_entries.clear()
+    await db.body_fat_entries.clear()
+    await db.nutrition_target_overrides.clear()
     setConfirmClear(false)
     flash('記錄已清除')
   }
@@ -278,6 +352,62 @@ export default function SettingsPage({
           className="mt-3 w-full rounded-2xl bg-amber-500 py-3 font-bold text-white active:bg-amber-600"
         >
           儲存個人檔案
+        </button>
+      </section>
+
+      <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
+        <h2 className="text-lg font-bold">🎯 自訂每日目標</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          留空即係用上面 Mifflin-St Jeor 計出嚟嘅預設值。糖係上限、纖維係下限、鈉係上限。
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {(
+            [
+              { key: 'calories', label: '卡路里 kcal', hint: `預設 ${target.calories}` },
+              { key: 'proteinG', label: '蛋白質 g', hint: `預設 ${target.proteinG}` },
+              { key: 'carbsG', label: '碳水 g', hint: `預設 ${target.carbsG}` },
+              { key: 'fatG', label: '脂肪 g', hint: `預設 ${target.fatG}` },
+              { key: 'sugarCeilingG', label: '糖上限 g', hint: '預設 50' },
+              { key: 'fiberFloorG', label: '纖維下限 g', hint: '預設 25' },
+              { key: 'sodiumCeilingMg', label: '鈉上限 mg', hint: '預設 2000' },
+            ] as Array<{
+              key: keyof typeof targetForm
+              label: string
+              hint: string
+            }>
+          ).map((f) => (
+            <label key={f.key}>
+              <span className="text-sm font-bold text-stone-600">{f.label}</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={targetForm[f.key]}
+                onChange={(e) =>
+                  setTargetForm({ ...targetForm, [f.key]: e.target.value })
+                }
+                placeholder={f.hint}
+                className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm">
+          <p className="font-bold">而家生效嘅目標</p>
+          <p className="mt-1 text-stone-600">
+            {effective.calories} kcal · 蛋白質 {effective.proteinG}g · 碳水{' '}
+            {effective.carbsG}g · 脂肪 {effective.fatG}g
+          </p>
+          <p className="mt-0.5 text-stone-600">
+            糖上限 {effective.sugarCeilingG}g · 纖維下限 {effective.fiberFloorG}
+            g · 鈉上限 {effective.sodiumCeilingMg}mg
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={saveTargets}
+          className="mt-3 w-full rounded-2xl bg-amber-500 py-3 font-bold text-white active:bg-amber-600"
+        >
+          儲存自訂目標
         </button>
       </section>
 
@@ -416,9 +546,111 @@ export default function SettingsPage({
       </section>
 
       <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
+        <h2 className="text-lg font-bold">🍎 Apple Health（經 iOS 捷徑）</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          PWA 寫唔到 HealthKit，所以經你自建嘅 iOS 捷徑寫入。撳「同步去 Apple
+          Health」嗰陣，App 會將數據包成 JSON 交畀捷徑。
+        </p>
+        <label className="mt-3 block">
+          <span className="text-sm font-bold text-stone-600">捷徑名</span>
+          <div className="mt-1 flex gap-2">
+            <input
+              type="text"
+              value={shortcutName}
+              onChange={(e) => setShortcutName(e.target.value)}
+              placeholder="CaLoMeiToHealth"
+              autoCapitalize="off"
+              autoCorrect="off"
+              className="min-w-0 flex-1 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            />
+            <button
+              type="button"
+              onClick={saveShortcutName}
+              className="shrink-0 rounded-xl bg-amber-500 px-4 py-2 font-bold text-white active:bg-amber-600"
+            >
+              儲存
+            </button>
+          </div>
+          <span className="mt-1 block text-xs text-stone-400">
+            要同捷徑 App 入面嗰捷徑個名一模一樣。
+          </span>
+        </label>
+
+        <details className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm">
+          <summary className="cursor-pointer font-bold">
+            📖 iOS 捷徑設定教學（撳開睇）
+          </summary>
+          <ol className="mt-2 list-decimal space-y-2 pl-5 leading-relaxed">
+            <li>
+              iPhone 開「捷徑」App → 右上角 <b>＋</b> 新增捷徑，改名做上面填嘅名（預設{' '}
+              <code className="rounded bg-white px-1">CaLoMeiToHealth</code>）。
+            </li>
+            <li>
+              第一個動作：<b>取得辭典</b>，輸入揀「捷徑輸入」（Shortcut
+              Input）。App 傳過嚟嘅 JSON 文字會自動變成辭典。
+            </li>
+            <li>
+              用「取得辭典值」攞 <code className="rounded bg-white px-1">type</code>{' '}
+              判斷係邊種數據，再用「如果」分三路：
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                <li>
+                  <b>meal</b>：用「記錄健康樣本」寫入 7 項 — 膳食能量（kcal）、膳食蛋白質（g）、膳食碳水化合物（g）、膳食脂肪（g）、膳食糖（g）、膳食纖維（g）、膳食鈉（mg）。數值用「取得辭典值」對應嘅欄位名，日期用{' '}
+                  <code className="rounded bg-white px-1">date</code>。
+                </li>
+                <li>
+                  <b>water</b>：用「記錄健康樣本」寫入「水」，數值係{' '}
+                  <code className="rounded bg-white px-1">amount_ml</code>（毫升）。
+                </li>
+                <li>
+                  <b>weight</b>：用「記錄健康樣本」寫入「體重」，數值係{' '}
+                  <code className="rounded bg-white px-1">weight_kg</code>
+                  ；有{' '}
+                  <code className="rounded bg-white px-1">
+                    body_fat_percent
+                  </code>{' '}
+                  就再寫入「體脂百分比」。
+                </li>
+              </ul>
+            </li>
+            <li>
+              第一次運行嗰陣，iOS 會問你係咪允許捷徑寫入「健康」— 撳「允許」。之後每次撳 App 入面嘅同步掣，就會自動寫入，唔使再確認。
+            </li>
+            <li>
+              測試：喺 App 記錄一餐之後撳「同步呢餐去 Apple
+              Health」，然後去「健康」App 睇吓有無多咗一筆膳食能量。
+            </li>
+          </ol>
+          <p className="mt-3 font-bold">傳去捷徑嘅 JSON 欄位：</p>
+          {HEALTH_PAYLOAD_FIELDS.map((group) => (
+            <div key={group.type} className="mt-2">
+              <p className="font-bold">
+                <code className="rounded bg-white px-1">{group.type}</code>
+              </p>
+              <table className="mt-1 w-full border-collapse text-xs">
+                <tbody>
+                  {group.fields.map((f) => (
+                    <tr key={f.name} className="border-t border-amber-200/60">
+                      <td className="py-1 pr-2 align-top font-bold">
+                        <code className="rounded bg-white px-1">{f.name}</code>
+                      </td>
+                      <td className="py-1 text-stone-600">{f.meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          <p className="mt-2 text-xs text-stone-400">
+            提示：捷徑入面「取得辭典值」嘅 key 要同上面欄位名完全一致（英文、細階）。date
+            係 ISO 時間，捷徑可以直接當日期用。
+          </p>
+        </details>
+      </section>
+
+      <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
         <h2 className="text-lg font-bold">💾 備份／還原</h2>
         <p className="mt-1 text-sm text-stone-500">
-          備份飲食記錄、體重、個人檔案同自訂 Prompt。預設唔包 API
+          備份飲食記錄、飲水、運動、體重／體脂、自訂目標、個人檔案同自訂 Prompt。預設唔包 API
           Key，換手機還原之後要再輸入一次。
         </p>
         <label className="mt-3 flex items-center gap-2 text-sm font-bold text-stone-600">

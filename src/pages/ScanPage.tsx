@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
 import { db, type UserProfile, type VisionProviderConfig } from '../lib/db'
 import { compressImage, inferMealType, MEAL_LABELS, type MealType } from '../lib/image'
-import { scanFood } from '../lib/vision'
+import { scanFood, scanNutritionLabel } from '../lib/vision'
 import { getToneInfo } from '../config/prompts'
+
+type ScanMode = 'food' | 'label'
 
 interface Props {
   profile: UserProfile
@@ -19,6 +21,7 @@ export default function ScanPage({
 }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [mode, setMode] = useState<ScanMode>('food')
   const [mealType, setMealType] = useState<MealType>(() => inferMealType())
   const [description, setDescription] = useState('')
   const [scanning, setScanning] = useState(false)
@@ -56,24 +59,47 @@ export default function ScanPage({
         proteinG: 0,
         carbsG: 0,
         fatG: 0,
+        sugarG: 0,
+        fiberG: 0,
+        sodiumMg: 0,
         servingSize: '',
         mealType,
         date: now,
         createdAt: now,
         imageDataUrl: compressed.dataUrl,
         scanStatus: 'scanning',
+        rebuttable: true,
       })
-      const result = await scanFood(
-        {
-          image_base64: compressed.base64,
-          food_description: description.trim() || null,
-          meal_type: mealType,
-          region: 'hk',
-          tone_mode: tone.apiValue,
-        },
-        visionConfig,
-        tonePrompt,
-      )
+      const request = {
+        image_base64: compressed.base64,
+        food_description: description.trim() || null,
+        meal_type: mealType,
+        region: 'hk',
+        tone_mode: tone.apiValue,
+      }
+      // v1.7.0 previous_roasts: today's earlier roasts, so the model does
+      // not repeat the same roast. Label mode does not need it.
+      let result
+      if (mode === 'label') {
+        result = await scanNutritionLabel(request, visionConfig, tonePrompt)
+      } else {
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const todays = await db.food_entries
+          .where('date')
+          .aboveOrEqual(startOfToday.getTime())
+          .toArray()
+        const previousRoasts = todays
+          .filter((e) => e.scanStatus === 'done' && e.roastComment)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 5)
+          .map((e) => e.roastComment as string)
+        result = await scanFood(
+          { ...request, previous_roasts: previousRoasts },
+          visionConfig,
+          tonePrompt,
+        )
+      }
       const components = result.food_items.map((item) => ({
         nameZH: item.name_zh,
         nameEN: item.name_en,
@@ -83,6 +109,9 @@ export default function ScanPage({
         carbsG: item.carbs_g,
         fatG: item.fat_g,
         confidence: item.confidence,
+        sugarG: item.sugar_g ?? 0,
+        fiberG: item.fiber_g ?? 0,
+        sodiumMg: item.sodium_mg ?? 0,
         isExcluded: false,
       }))
       const first = components[0]
@@ -94,11 +123,17 @@ export default function ScanPage({
         ),
         carbsG: round1(components.reduce((a, c) => a + c.carbsG, 0)),
         fatG: round1(components.reduce((a, c) => a + c.fatG, 0)),
+        sugarG: round1(components.reduce((a, c) => a + (c.sugarG ?? 0), 0)),
+        fiberG: round1(components.reduce((a, c) => a + (c.fiberG ?? 0), 0)),
+        sodiumMg: Math.round(
+          components.reduce((a, c) => a + (c.sodiumMg ?? 0), 0),
+        ),
         servingSize: first?.portionDescription ?? '',
         componentsJson: JSON.stringify(components),
         scanStatus: 'done',
         roastComment: result.roast_comment,
         roastEmoji: tone.emoji,
+        rebuttable: result.rebuttable ?? true,
         aiOriginalName: first?.nameZH ?? null,
         aiOriginalComponentsJson: JSON.stringify(components),
       })
@@ -131,10 +166,14 @@ export default function ScanPage({
 
       {!preview ? (
         <div className="mt-6 rounded-3xl border-2 border-dashed border-amber-300 bg-white p-8 text-center">
-          <div className="text-5xl">📸</div>
-          <p className="mt-3 text-lg font-bold">影低你食緊咩</p>
+          <div className="text-5xl">{mode === 'label' ? '🏷️' : '📸'}</div>
+          <p className="mt-3 text-lg font-bold">
+            {mode === 'label' ? '影低營養標籤' : '影低你食緊咩'}
+          </p>
           <p className="mt-1 text-sm text-stone-500">
-            AI 會認出食物、計卡路里，再用{tone.label}語氣講句嘢
+            {mode === 'label'
+              ? '影包裝背面個營養表，AI 會直接讀數字填好'
+              : `AI 會認出食物、計卡路里，再用${tone.label}語氣講句嘢`}
           </p>
           <div className="mt-6 flex gap-3">
             <button
@@ -174,6 +213,29 @@ export default function ScanPage({
         </div>
       )}
 
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {(
+          [
+            { id: 'food', label: '🍽️ 影食物', hint: '認食物、計卡路里' },
+            { id: 'label', label: '🏷️ 影營養標籤', hint: '讀包裝背面數字' },
+          ] as Array<{ id: ScanMode; label: string; hint: string }>
+        ).map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setMode(m.id)}
+            className={`rounded-2xl border-2 p-3 text-left ${
+              mode === m.id
+                ? 'border-amber-500 bg-amber-50'
+                : 'border-stone-200 bg-white'
+            }`}
+          >
+            <span className="block font-bold">{m.label}</span>
+            <span className="block text-xs text-stone-500">{m.hint}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
         <label className="text-sm font-bold text-stone-600">邊餐？</label>
         <div className="mt-2 grid grid-cols-3 gap-2">
@@ -200,7 +262,11 @@ export default function ScanPage({
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="例如：食咗一半、走甜、加飯…"
+          placeholder={
+            mode === 'label'
+              ? '例如：產品名：出前一丁麻油味'
+              : '例如：食咗一半、走甜、加飯…'
+          }
           className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
         />
 
@@ -217,7 +283,11 @@ export default function ScanPage({
           onClick={onScan}
           className="mt-4 w-full rounded-2xl bg-amber-500 py-3 text-lg font-bold text-white disabled:opacity-40 active:bg-amber-600"
         >
-          {scanning ? '分析緊…請稍候' : '🔍 分析呢餐'}
+          {scanning
+            ? '分析緊…請稍候'
+            : mode === 'label'
+              ? '🔍 讀營養標籤'
+              : '🔍 分析呢餐'}
         </button>
 
         {error && (

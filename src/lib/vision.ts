@@ -5,7 +5,11 @@
 // Gemini via its OpenAI-compatible endpoint), so swapping models is a
 // settings change, not a code change.
 
-import { CORRECTION_SYSTEM_PROMPT } from '../config/prompts'
+import {
+  CORRECTION_SYSTEM_PROMPT,
+  LABEL_SCAN_TASK,
+  REBUT_TASK_SUFFIX,
+} from '../config/prompts'
 import type { VisionProviderConfig } from './db'
 
 export interface ScannedFoodItem {
@@ -17,12 +21,19 @@ export interface ScannedFoodItem {
   carbs_g: number
   fat_g: number
   confidence: number
+  /** v1.7.0: sugar (g), fiber (g), sodium (mg). Optional — older results
+   * and the json_object fallback may omit them; normalised to 0. */
+  sugar_g?: number
+  fiber_g?: number
+  sodium_mg?: number
 }
 
 export interface FoodScanResult {
   food_items: ScannedFoodItem[]
   total_calories: number
   roast_comment: string
+  /** v1.7.0: whether this roast can be rebutted. Default true when absent. */
+  rebuttable?: boolean
 }
 
 export interface CorrectionResult {
@@ -36,12 +47,24 @@ export interface ScanFoodRequest {
   meal_type: string
   region: string
   tone_mode: string
+  /** v1.7.0: today's earlier roast comments, so the model does not repeat
+   * the same roast. Sent as prompt context, not part of the JSON schema. */
+  previous_roasts?: string[] | null
 }
 
 export interface CorrectFoodRequest {
   image_base64: string
   food_titles: string[]
   region: string
+  /** v1.7.0: the user's rebuttal text, when correcting with an argument. */
+  rebuttal?: string | null
+  /** v1.7.0: tone to answer in. */
+  tone_mode?: string | null
+}
+
+/** v1.7.0 rebuttal response: just a fresh roast_comment. */
+export interface RebutResult {
+  roast_comment: string
 }
 
 const SCANNED_ITEM_SCHEMA = {
@@ -55,6 +78,9 @@ const SCANNED_ITEM_SCHEMA = {
     carbs_g: { type: 'number', minimum: 0 },
     fat_g: { type: 'number', minimum: 0 },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
+    sugar_g: { type: 'number', minimum: 0 },
+    fiber_g: { type: 'number', minimum: 0 },
+    sodium_mg: { type: 'number', minimum: 0 },
   },
   required: [
     'name_zh',
@@ -65,6 +91,9 @@ const SCANNED_ITEM_SCHEMA = {
     'carbs_g',
     'fat_g',
     'confidence',
+    'sugar_g',
+    'fiber_g',
+    'sodium_mg',
   ],
   additionalProperties: false,
 } as const
@@ -90,6 +119,15 @@ export const CORRECTION_SCHEMA = {
   additionalProperties: false,
 } as const
 
+export const REBUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    roast_comment: { type: 'string' },
+  },
+  required: ['roast_comment'],
+  additionalProperties: false,
+} as const
+
 const TIMEOUT_MS = 60_000
 
 interface ChatMessage {
@@ -108,6 +146,11 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 
 function isScannedItem(x: unknown): x is ScannedFoodItem {
   if (!isRecord(x)) return false
+  // sugar_g / fiber_g / sodium_mg are optional here: the strict schema
+  // requires them, but the json_object fallback may omit them — they are
+  // normalised to 0 afterwards.
+  const optionalNumber = (v: unknown) =>
+    v === undefined || (typeof v === 'number' && Number.isFinite(v) && v >= 0)
   return (
     typeof x.name_zh === 'string' &&
     typeof x.name_en === 'string' &&
@@ -118,13 +161,31 @@ function isScannedItem(x: unknown): x is ScannedFoodItem {
     Number.isFinite(x.fat_g) &&
     typeof x.confidence === 'number' &&
     x.confidence >= 0 &&
-    x.confidence <= 1
+    x.confidence <= 1 &&
+    optionalNumber(x.sugar_g) &&
+    optionalNumber(x.fiber_g) &&
+    optionalNumber(x.sodium_mg)
   )
+}
+
+/** Fill missing sugar/fiber/sodium with 0 so callers never see undefined. */
+function normalizeItems(items: ScannedFoodItem[]): ScannedFoodItem[] {
+  return items.map((item) => ({
+    ...item,
+    sugar_g: item.sugar_g ?? 0,
+    fiber_g: item.fiber_g ?? 0,
+    sodium_mg: item.sodium_mg ?? 0,
+  }))
 }
 
 function isFoodScanResult(x: unknown): x is FoodScanResult {
   if (!isRecord(x)) return false
   if (!Array.isArray(x.food_items) || !x.food_items.every(isScannedItem))
+    return false
+  if (
+    x.rebuttable !== undefined &&
+    typeof x.rebuttable !== 'boolean'
+  )
     return false
   return (
     Number.isFinite(x.total_calories) && typeof x.roast_comment === 'string'
@@ -136,6 +197,10 @@ function isCorrectionResult(x: unknown): x is CorrectionResult {
   if (!Array.isArray(x.food_items) || !x.food_items.every(isScannedItem))
     return false
   return Number.isFinite(x.total_calories)
+}
+
+function isRebutResult(x: unknown): x is RebutResult {
+  return isRecord(x) && typeof x.roast_comment === 'string'
 }
 
 /** Fix total_calories to the sum of items when it drifts too far (±10%). */
@@ -274,6 +339,17 @@ export async function scanFood(
   if (req.food_description?.trim()) {
     contextParts.push(`用戶補充：${req.food_description.trim()}`)
   }
+  if (req.previous_roasts?.length) {
+    const prior = req.previous_roasts
+      .slice(-5)
+      .map((r) => r.replace(/\s+/g, ' ').trim().slice(0, 60))
+      .filter(Boolean)
+    if (prior.length > 0) {
+      contextParts.push(
+        `今日之前你已經講過以下評語，唔好重複同一句，要講啲新嘢：${prior.map((r) => `「${r}」`).join('、')}。`,
+      )
+    }
+  }
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     {
@@ -287,7 +363,7 @@ export async function scanFood(
       ],
     },
   ]
-  return withRepairRetry(
+  const result = await withRepairRetry(
     () =>
       chatCompletion(
         config,
@@ -302,20 +378,89 @@ export async function scanFood(
     messages,
     isFoodScanResult,
   )
+  return {
+    ...result,
+    food_items: normalizeItems(result.food_items),
+    // v1.7.0: rebuttable defaults to true when the model omits it.
+    rebuttable: result.rebuttable ?? true,
+  }
 }
 
-export async function correctFood(
-  req: CorrectFoodRequest,
+/**
+ * Nutrition-label mode — same FoodScanResult shape, but the photo is a
+ * package's nutrition label. The tone prompt still sets the roast voice;
+ * LABEL_SCAN_TASK overrides the "recognise dishes" part.
+ */
+export async function scanNutritionLabel(
+  req: ScanFoodRequest,
   config: VisionProviderConfig,
-): Promise<CorrectionResult> {
+  systemPrompt: string,
+): Promise<FoodScanResult> {
+  const contextParts = [`地區：${req.region}。`]
+  if (req.food_description?.trim()) {
+    contextParts.push(`產品名（用戶提供）：${req.food_description.trim()}`)
+  }
   const messages: ChatMessage[] = [
-    { role: 'system', content: CORRECTION_SYSTEM_PROMPT },
+    { role: 'system', content: `${systemPrompt}\n\n${LABEL_SCAN_TASK}` },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: contextParts.join('') },
+        {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${req.image_base64}` },
+        },
+      ],
+    },
+  ]
+  const result = await withRepairRetry(
+    () =>
+      chatCompletion(
+        config,
+        'food_scan',
+        FOOD_SCAN_SCHEMA,
+        messages,
+        isFoodScanResult,
+      ),
+    config,
+    'food_scan',
+    FOOD_SCAN_SCHEMA,
+    messages,
+    isFoodScanResult,
+  )
+  return {
+    ...result,
+    food_items: normalizeItems(result.food_items),
+    rebuttable: result.rebuttable ?? true,
+  }
+}
+
+export interface RebutRoastRequest {
+  image_base64: string
+  original_roast: string
+  rebuttal: string
+  region: string
+  tone_mode: string
+}
+
+/**
+ * v1.7.0 rebut-roast: the user argues back, the model answers in the same
+ * tone with a fresh roast_comment. Only the comment changes — the food
+ * numbers stay as they are.
+ */
+export async function rebutRoast(
+  req: RebutRoastRequest,
+  config: VisionProviderConfig,
+  systemPrompt: string,
+): Promise<RebutResult> {
+  const messages: ChatMessage[] = [
+    { role: 'system', content: `${systemPrompt}\n\n${REBUT_TASK_SUFFIX}` },
     {
       role: 'user',
       content: [
         {
           type: 'text',
-          text: `用戶話相入面正確嘅食物係：${JSON.stringify(req.food_titles)}。地區：${req.region}。請按呢啲名重新分析同一張相，唔好估其他嘢。`,
+          text: `你之前講：「${req.original_roast}」\n用戶駁：「${req.rebuttal.trim()}」\n地區：${req.region}；語氣：${req.tone_mode}。`,
         },
         {
           type: 'image_url',
@@ -325,6 +470,49 @@ export async function correctFood(
     },
   ]
   return withRepairRetry(
+    () =>
+      chatCompletion(
+        config,
+        'rebut',
+        REBUT_SCHEMA,
+        messages,
+        isRebutResult,
+      ),
+    config,
+    'rebut',
+    REBUT_SCHEMA,
+    messages,
+    isRebutResult,
+  )
+}
+
+export async function correctFood(
+  req: CorrectFoodRequest,
+  config: VisionProviderConfig,
+): Promise<CorrectionResult> {
+  const contextParts = [
+    `用戶話相入面正確嘅食物係：${JSON.stringify(req.food_titles)}。地區：${req.region}。請按呢啲名重新分析同一張相，唔好估其他嘢。`,
+  ]
+  if (req.rebuttal?.trim()) {
+    contextParts.push(`用戶補充（反駁）：${req.rebuttal.trim()}`)
+  }
+  if (req.tone_mode) {
+    contextParts.push(`語氣：${req.tone_mode}。`)
+  }
+  const messages: ChatMessage[] = [
+    { role: 'system', content: CORRECTION_SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: contextParts.join('') },
+        {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${req.image_base64}` },
+        },
+      ],
+    },
+  ]
+  const result = await withRepairRetry(
     () =>
       chatCompletion(
         config,
@@ -339,4 +527,5 @@ export async function correctFood(
     messages,
     isCorrectionResult,
   )
+  return { ...result, food_items: normalizeItems(result.food_items) }
 }

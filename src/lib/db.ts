@@ -43,6 +43,11 @@ export interface FoodComponent {
   fatG: number
   confidence: number
   isExcluded: boolean
+  /** v1.7.0: sugar / fiber / sodium per item (g / g / mg). Optional so old
+   * componentsJson without them still loads — treat missing as 0. */
+  sugarG?: number
+  fiberG?: number
+  sodiumMg?: number
 }
 
 export interface FoodEntry {
@@ -68,6 +73,15 @@ export interface FoodEntry {
   roastEmoji?: string | null
   aiOriginalName?: string | null
   aiOriginalComponentsJson?: string | null
+  /** v1.7.0 totals (like proteinG etc.). Optional — old entries lack them. */
+  sugarG?: number
+  fiberG?: number
+  sodiumMg?: number
+  /** v1.7.0: whether this roast can be rebutted. Default true when absent. */
+  rebuttable?: boolean
+  /** JSON array of previous roast comments for this entry (oldest first),
+   * appended on each rebuttal. Feeds `previous_roasts` on later scans. */
+  roastHistoryJson?: string | null
 }
 
 export interface WeightEntry {
@@ -111,6 +125,73 @@ export interface FoodCollectionItem {
   servingSize: string
   sortOrder: number
   createdAt: number
+}
+
+/** v1.7.0 water_entries — one row per drink. */
+export interface WaterEntry {
+  id: string
+  /** Millilitres drunk. */
+  amountML: number
+  /** Epoch ms of the drink. */
+  date: number
+  createdAt: number
+}
+
+/**
+ * v1.7.0 exercise_entries — simple manual log (Kong's choice: name,
+ * minutes and calories burned only, no MET library).
+ */
+export interface ExerciseEntry {
+  id: string
+  name: string
+  exerciseType: string
+  durationMinutes: number
+  caloriesBurned: number
+  /** Epoch ms of the workout. */
+  date: number
+  createdAt: number
+}
+
+/** v1.7.0 body_fat_entries — one row per body-fat reading. */
+export interface BodyFatEntry {
+  id: string
+  bodyFatPercentage: number
+  /** Epoch ms of the reading. */
+  date: number
+  createdAt: number
+}
+
+/**
+ * v1.7.0 nutrition_target_overrides — a single active row (id 'default').
+ * Every field is nullable: null means "use the Mifflin-St Jeor default".
+ * Sugar is a ceiling, fiber is a floor, sodium is a ceiling.
+ */
+export interface NutritionTargetOverride {
+  id: string
+  effectiveFrom: number
+  updatedAt: number
+  calories: number | null
+  proteinG: number | null
+  carbsG: number | null
+  fatG: number | null
+  sugarCeilingG: number | null
+  fiberFloorG: number | null
+  sodiumCeilingMg: number | null
+}
+
+export function defaultTargetOverride(): NutritionTargetOverride {
+  return {
+    id: 'default',
+    effectiveFrom: Date.now(),
+    updatedAt: Date.now(),
+    calories: null,
+    proteinG: null,
+    carbsG: null,
+    fatG: null,
+    sugarCeilingG: null,
+    fiberFloorG: null,
+    sodiumCeilingMg: null,
+  }
 }
 
 export interface Setting {
@@ -189,6 +270,10 @@ class CaLoMeiDb extends Dexie {
   saved_foods!: EntityTable<SavedFood, 'id'>
   food_collections!: EntityTable<FoodCollection, 'id'>
   food_collection_items!: EntityTable<FoodCollectionItem, 'id'>
+  water_entries!: EntityTable<WaterEntry, 'id'>
+  exercise_entries!: EntityTable<ExerciseEntry, 'id'>
+  body_fat_entries!: EntityTable<BodyFatEntry, 'id'>
+  nutrition_target_overrides!: EntityTable<NutritionTargetOverride, 'id'>
   settings!: EntityTable<Setting, 'key'>
 
   constructor() {
@@ -200,6 +285,23 @@ class CaLoMeiDb extends Dexie {
       saved_foods: 'id',
       food_collections: 'id',
       food_collection_items: 'id, collectionId',
+      settings: 'key',
+    })
+    // v2 (2026-11-21, v1.7.0 port): 4 new tables. Dexie adds the tables
+    // and keeps every v1 row — new fields on food_entries are unindexed
+    // props, so no data migration is needed. version(2).stores() must list
+    // the FULL schema, not just the delta.
+    this.version(2).stores({
+      user_profiles: 'id',
+      food_entries: 'id, date, mealType, createdAt',
+      weight_entries: 'id, date',
+      saved_foods: 'id',
+      food_collections: 'id',
+      food_collection_items: 'id, collectionId',
+      water_entries: 'id, date',
+      exercise_entries: 'id, date',
+      body_fat_entries: 'id, date',
+      nutrition_target_overrides: 'id, effectiveFrom',
       settings: 'key',
     })
   }
@@ -251,4 +353,41 @@ export async function setTonePromptOverride(
 
 export async function resetTonePromptOverride(tone: string): Promise<void> {
   await db.settings.delete(`prompt_${tone}`)
+}
+
+/** iOS Shortcut name used for the Apple Health export (Settings). */
+export const DEFAULT_HEALTH_SHORTCUT_NAME = 'CaLoMeiToHealth'
+
+export async function getHealthShortcutName(): Promise<string> {
+  return getSetting<string>(
+    'healthShortcutName',
+    DEFAULT_HEALTH_SHORTCUT_NAME,
+  )
+}
+
+export async function setHealthShortcutName(name: string): Promise<void> {
+  await setSetting(
+    'healthShortcutName',
+    name.trim() || DEFAULT_HEALTH_SHORTCUT_NAME,
+  )
+}
+
+/** The single active custom-targets row, or null when defaults apply. */
+export async function getTargetOverride(): Promise<NutritionTargetOverride | null> {
+  const row = await db.nutrition_target_overrides.get('default')
+  return row ?? null
+}
+
+export async function setTargetOverride(
+  patch: Partial<Omit<NutritionTargetOverride, 'id' | 'updatedAt'>>,
+): Promise<NutritionTargetOverride> {
+  const existing = await getTargetOverride()
+  const next: NutritionTargetOverride = {
+    ...(existing ?? defaultTargetOverride()),
+    ...patch,
+    id: 'default',
+    updatedAt: Date.now(),
+  }
+  await db.nutrition_target_overrides.put(next)
+  return next
 }
