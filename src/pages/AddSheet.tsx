@@ -87,10 +87,12 @@ export default function AddSheet({
   const [visceral, setVisceral] = useState('')
   const [weighMsg, setWeighMsg] = useState<string | null>(null)
 
-  const savedFoods = useLiveQuery(
-    () => db.saved_foods.orderBy('createdAt').reverse().toArray(),
-    [],
-  )
+  // 收藏清單好細，拎晒返嚟喺 JS 排返新到舊 — saved_foods 只有 id 索引，
+  // 用 orderBy('createdAt') 會令 Dexie 擲 SchemaError，成個 app 黑屏。
+  const savedFoods = useLiveQuery(async () => {
+    const all = await db.saved_foods.toArray()
+    return all.sort((a, b) => b.createdAt - a.createdAt)
+  }, [])
 
   useEffect(() => {
     if (open) {
