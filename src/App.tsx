@@ -350,15 +350,18 @@ export default function App() {
         </div>
       </nav>
 
-      {/* FAB — narrow screens only. */}
-      <button
-        type="button"
-        onClick={() => openSheet('menu')}
-        aria-label="新增"
-        className="glass-cta-amber fixed right-4 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white md:hidden"
-      >
-        <PlusIcon size={24} />
-      </button>
+      {/* FAB — narrow screens only; hidden while a meal result is open so it
+          never sits on top of the result page's sticky bottom bar. */}
+      {!currentEntryId && (
+        <button
+          type="button"
+          onClick={() => openSheet('menu')}
+          aria-label="新增"
+          className="glass-cta-amber fixed right-4 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white md:hidden"
+        >
+          <PlusIcon size={24} />
+        </button>
+      )}
 
       <AddSheet
         open={sheetOpen}

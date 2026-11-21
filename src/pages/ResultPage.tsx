@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+// 結果頁（重構版，見 DESIGN.md §11）：
+// 由上至下：食物相＋懸浮返回 → 餐類膠囊＋收藏／Health／刪除 → 標題＋份數藥丸
+// → 🔥 總卡路里卡＋2×3 營養格（撳數字改總量，按比例縮放）→ 食材單行列表
+// （撳一行開 IngredientSheet，唔再展開大表單）→ Roast 卡＋駁佢 → Sticky
+// Bottom Bar（✨ AI 修正／搞掂）。三個彈窗：IngredientSheet、
+// AddIngredientModal、AI 修正。
+// 份數縮放模型：base（1 份時嘅值）× multiplier = 顯示值；改總量按比例縮放
+// 未剔除食材（base 同 multiplier 同步郁）。克數由 portionDescription 解析，
+// 舊記錄無克數照樣用得——唔改 Dexie schema、唔郁 src/lib。
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
@@ -7,11 +16,30 @@ import {
   type FoodEntry,
   type VisionProviderConfig,
 } from '../lib/db'
-import { MEAL_LABELS } from '../lib/image'
 import { isoDate, openHealthShortcut } from '../lib/health'
 import { correctFood, rebutRoast } from '../lib/vision'
-import { macrosForGrams, searchFoods, type LocalFoodItem } from '../lib/foodDb'
-import { GlassButton } from '../components/ui'
+import { GlassModal } from '../components/ui'
+import {
+  ChevronRightIcon,
+  HeartIcon,
+  PencilIcon,
+  SparklesIcon,
+  StarIcon,
+  TrashIcon,
+  XIcon,
+} from '../components/icons'
+import IngredientSheet, { type IngredientPatch } from './IngredientSheet'
+import AddIngredientModal from './AddIngredientModal'
+import {
+  fmtMealTime,
+  fmtMultiplier,
+  parseGrams,
+  pickNutrients,
+  round1,
+  scaleComponent,
+  scaleNutrients,
+  type Nutrients,
+} from './resultUtils'
 
 interface Props {
   entryId: string
@@ -67,6 +95,22 @@ function componentsFromEntry(entry: {
   ]
 }
 
+type TotalField = keyof Nutrients
+
+const TOTAL_FIELDS: Array<{
+  field: TotalField
+  label: string
+  unit: string
+  step: string
+}> = [
+  { field: 'proteinG', label: '蛋白質', unit: 'g', step: '0.1' },
+  { field: 'carbsG', label: '碳水', unit: 'g', step: '0.1' },
+  { field: 'fatG', label: '脂肪', unit: 'g', step: '0.1' },
+  { field: 'sugarG', label: '糖', unit: 'g', step: '0.1' },
+  { field: 'fiberG', label: '纖維', unit: 'g', step: '0.1' },
+  { field: 'sodiumMg', label: '鈉', unit: 'mg', step: '1' },
+]
+
 export default function ResultPage({
   entryId,
   visionConfig,
@@ -77,23 +121,44 @@ export default function ResultPage({
 }: Props) {
   const entry = useLiveQuery(() => db.food_entries.get(entryId), [entryId])
   const [items, setItems] = useState<FoodComponent[] | null>(null)
+  const [baseItems, setBaseItems] = useState<FoodComponent[] | null>(null)
+  const [multiplier, setMultiplier] = useState(1)
   const [savedTick, setSavedTick] = useState(0)
+  const [title, setTitle] = useState('')
+  const titleEditedRef = useRef(false)
+  const [editingTitle, setEditingTitle] = useState(false)
   const [correctTitles, setCorrectTitles] = useState('')
   const [correcting, setCorrecting] = useState(false)
   const [correctError, setCorrectError] = useState<string | null>(null)
+  const [correctOpen, setCorrectOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<LocalFoodItem[]>([])
-  const [searching, setSearching] = useState(false)
   const [rebuttal, setRebuttal] = useState('')
   const [rebutting, setRebutting] = useState(false)
   const [rebutError, setRebutError] = useState<string | null>(null)
+  const [rebutOpen, setRebutOpen] = useState(false)
   const [healthMsg, setHealthMsg] = useState<string | null>(null)
   const [savedMsg, setSavedMsg] = useState<string | null>(null)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [portionOpen, setPortionOpen] = useState(false)
+  const [portionCustom, setPortionCustom] = useState('')
+  const [totalEdit, setTotalEdit] = useState<{
+    field: TotalField
+    label: string
+    unit: string
+    step: string
+  } | null>(null)
+  const [totalEditValue, setTotalEditValue] = useState('')
 
   // Load components when the entry (or its saved JSON) changes.
   useEffect(() => {
-    if (entry) setItems(componentsFromEntry(entry))
+    if (entry) {
+      const loaded = componentsFromEntry(entry)
+      setItems(loaded)
+      setBaseItems(loaded)
+      setMultiplier(1)
+      if (!titleEditedRef.current) setTitle(entry.name)
+    }
   }, [entry, savedTick])
 
   const totals = useMemo(() => {
@@ -129,11 +194,30 @@ export default function ResultPage({
   const loadedEntry: FoodEntry = entry
 
   const current = items ?? componentsFromEntry(loadedEntry)
+  const baseList = baseItems ?? componentsFromEntry(loadedEntry)
 
-  function updateItem(index: number, patch: Partial<FoodComponent>) {
+  /** 食材窗改完嘅顯示值 → 除返 multiplier 寫入 base，保持 base × 倍數 = 顯示值。 */
+  function toBasePatch(patch: IngredientPatch, m: number): IngredientPatch {
+    if (m === 1) return patch
+    const g = parseGrams(patch.portionDescription)
+    return {
+      ...patch,
+      ...scaleNutrients(pickNutrients(patch), 1 / m),
+      portionDescription:
+        g !== null ? `約${Math.round(g / m)}克` : patch.portionDescription,
+    }
+  }
+
+  function applyIngredientPatch(index: number, patch: IngredientPatch) {
     setItems((prev) => {
       const list = prev ?? componentsFromEntry(loadedEntry)
       return list.map((item, i) => (i === index ? { ...item, ...patch } : item))
+    })
+    setBaseItems((prev) => {
+      const list = prev ?? componentsFromEntry(loadedEntry)
+      return list.map((item, i) =>
+        i === index ? { ...item, ...toBasePatch(patch, multiplier) } : item,
+      )
     })
   }
 
@@ -142,12 +226,57 @@ export default function ResultPage({
       const list = prev ?? componentsFromEntry(loadedEntry)
       return list.filter((_, i) => i !== index)
     })
+    setBaseItems((prev) => {
+      const list = prev ?? componentsFromEntry(loadedEntry)
+      return list.filter((_, i) => i !== index)
+    })
+  }
+
+  function addComponent(c: FoodComponent) {
+    setItems((prev) => [...(prev ?? componentsFromEntry(loadedEntry)), c])
+    setBaseItems((prev) => [
+      ...(prev ?? componentsFromEntry(loadedEntry)),
+      multiplier === 1 ? c : scaleComponent(c, 1 / multiplier),
+    ])
+  }
+
+  function applyMultiplier(m: number) {
+    const clamped = Math.min(10, Math.max(0.1, m))
+    setItems(baseList.map((c) => scaleComponent(c, clamped)))
+    setMultiplier(clamped)
+    setPortionOpen(false)
+  }
+
+  function openTotalEdit(
+    field: TotalField,
+    label: string,
+    unit: string,
+    step: string,
+  ) {
+    setTotalEdit({ field, label, unit, step })
+    setTotalEditValue(String(totals[field]))
+  }
+
+  function applyTotalEdit() {
+    if (!totalEdit) return
+    const old = totals[totalEdit.field]
+    const value = Number(totalEditValue)
+    if (!old || old <= 0 || !Number.isFinite(value) || value <= 0) return
+    const factor = value / old
+    const scaleKept = (c: FoodComponent) =>
+      c.isExcluded ? c : scaleComponent(c, factor)
+    setItems((prev) => (prev ?? []).map(scaleKept))
+    setBaseItems((prev) => (prev ?? []).map(scaleKept))
+    setMultiplier((m) => m * factor)
+    setTotalEdit(null)
   }
 
   async function onSave() {
     const kept = current.filter((i) => !i.isExcluded)
     await db.food_entries.update(entryId, {
-      name: kept[0]?.nameZH ?? loadedEntry.name,
+      name: titleEditedRef.current
+        ? title
+        : (kept[0]?.nameZH ?? (title || loadedEntry.name)),
       calories: totals.calories,
       proteinG: totals.proteinG,
       carbsG: totals.carbsG,
@@ -158,7 +287,13 @@ export default function ResultPage({
       servingSize: kept[0]?.portionDescription ?? '',
       componentsJson: JSON.stringify(current),
     })
+    titleEditedRef.current = false
     setSavedTick((t) => t + 1)
+  }
+
+  async function onSaveAndBack() {
+    await onSave()
+    onBack()
   }
 
   async function onRebut() {
@@ -203,6 +338,7 @@ export default function ResultPage({
         roastHistoryJson: JSON.stringify(history.slice(-10)),
       })
       setRebuttal('')
+      setRebutOpen(false)
     } catch (e) {
       setRebutError(e instanceof Error ? e.message : '駁唔到，請再試一次。')
     } finally {
@@ -295,6 +431,9 @@ export default function ResultPage({
         isExcluded: false,
       }))
       setItems(next)
+      setBaseItems(next)
+      setMultiplier(1)
+      if (!titleEditedRef.current) setTitle(next[0]?.nameZH ?? title)
       await db.food_entries.update(entryId, {
         componentsJson: JSON.stringify(next),
         calories: result.total_calories,
@@ -303,46 +442,12 @@ export default function ResultPage({
           loadedEntry.aiOriginalComponentsJson ?? loadedEntry.componentsJson ?? null,
       })
       setCorrectTitles('')
+      setCorrectOpen(false)
     } catch (e) {
       setCorrectError(e instanceof Error ? e.message : '糾正失敗，請再試一次。')
     } finally {
       setCorrecting(false)
     }
-  }
-
-  async function onSearch(q: string) {
-    setSearchQuery(q)
-    if (q.trim().length < 1) {
-      setSearchResults([])
-      return
-    }
-    setSearching(true)
-    try {
-      setSearchResults(await searchFoods(q, 12))
-    } finally {
-      setSearching(false)
-    }
-  }
-
-  function addLocalFood(item: LocalFoodItem, grams: number) {
-    const m = macrosForGrams(item, grams)
-    const next: FoodComponent = {
-      nameZH: item.name,
-      nameEN: item.nameEN ?? '',
-      portionDescription: `約${grams}克`,
-      calories: m.calories,
-      proteinG: m.proteinG,
-      carbsG: m.carbsG,
-      fatG: m.fatG,
-      confidence: 1,
-      sugarG: 0,
-      fiberG: 0,
-      sodiumMg: 0,
-      isExcluded: false,
-    }
-    setItems((prev) => [...(prev ?? componentsFromEntry(loadedEntry)), next])
-    setSearchQuery('')
-    setSearchResults([])
   }
 
   async function onDelete() {
@@ -354,33 +459,221 @@ export default function ResultPage({
     onDeleted()
   }
 
-  const dateStr = new Date(loadedEntry.date).toLocaleDateString('zh-HK', {
-    month: 'short',
-    day: 'numeric',
-  })
+  const mealTime = fmtMealTime(loadedEntry.mealType, loadedEntry.date)
+  const displayTitle = title || loadedEntry.name
+  const editingItem =
+    editingIndex !== null ? current[editingIndex] : undefined
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-10">
-      <button
-        type="button"
-        onClick={onBack}
-        className="mt-4 font-bold text-[#FF9F0A]"
-      >
-        ← 返回記錄
-      </button>
-
-      {loadedEntry.imageDataUrl && (
-        <img
-          src={loadedEntry.imageDataUrl}
-          alt="食物相片"
-          className="mt-3 w-full rounded-3xl object-cover"
-        />
+    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-2xl">
+      {/* 頂部食物相＋懸浮返回 */}
+      {loadedEntry.imageDataUrl ? (
+        <div className="relative mt-3">
+          <img
+            src={loadedEntry.imageDataUrl}
+            alt="食物相片"
+            className="w-full rounded-3xl object-cover"
+          />
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="返回"
+            className="absolute top-3 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl ring-1 ring-white/20"
+          >
+            <XIcon size={18} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-4 font-bold text-[#FF9F0A]"
+        >
+          ← 返回記錄
+        </button>
       )}
 
+      {/* 餐類膠囊＋收藏／Health／刪除 */}
+      <div className="mt-3 flex items-start justify-between gap-2">
+        <span className="glass-pill mt-1 px-3 py-1.5 text-xs font-bold whitespace-nowrap">
+          {mealTime}
+        </span>
+        <span className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={onSaveFavorite}
+            aria-label="收藏呢餐"
+            className="flex w-11 flex-col items-center gap-0.5"
+          >
+            <span className="glass-subcard flex h-10 w-10 items-center justify-center rounded-full text-[#FF9F0A]">
+              <StarIcon size={20} />
+            </span>
+            <span className="text-[10px] font-bold text-white/50">收藏</span>
+          </button>
+          <button
+            type="button"
+            onClick={onExportHealth}
+            title="經 iOS 捷徑寫入 Apple Health（只適用於 iOS；捷徑名喺「設定」改）"
+            aria-label="同步去 Apple Health"
+            className="flex w-11 flex-col items-center gap-0.5"
+          >
+            <span className="glass-subcard flex h-10 w-10 items-center justify-center rounded-full text-red-400">
+              <HeartIcon size={20} />
+            </span>
+            <span className="text-[10px] font-bold text-white/50">Health</span>
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="刪除呢餐"
+            className="flex w-11 flex-col items-center gap-0.5"
+          >
+            <span
+              className={`glass-subcard flex h-10 w-10 items-center justify-center rounded-full text-red-400 ${
+                confirmDelete ? 'bg-red-500/30' : ''
+              }`}
+            >
+              <TrashIcon size={20} />
+            </span>
+            <span className="text-[10px] font-bold text-white/50">刪除</span>
+          </button>
+        </span>
+      </div>
+      {confirmDelete && (
+        <p className="mt-2 text-center text-sm font-bold text-red-300">
+          再撳一次刪除掣確認刪除呢餐
+        </p>
+      )}
+      {(savedMsg ?? healthMsg) && (
+        <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
+          {savedMsg ?? healthMsg}
+        </p>
+      )}
+
+      {/* 餐名＋整體份量 */}
+      <div className="mt-3 flex items-start justify-between gap-2">
+        {editingTitle ? (
+          <input
+            type="text"
+            autoFocus
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value)
+              titleEditedRef.current = true
+            }}
+            onBlur={() => setEditingTitle(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') setEditingTitle(false)
+            }}
+            aria-label="餐名"
+            className="glass-input min-w-0 flex-1 text-2xl font-bold"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingTitle(true)}
+            className="min-w-0 flex-1 text-left"
+          >
+            <h1 className="truncate text-2xl font-bold">{displayTitle}</h1>
+            <span className="text-xs text-white/40">撳標題可以改名</span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setPortionOpen(true)}
+          className="glass-pill mt-1 flex shrink-0 items-center gap-1 px-3 py-1.5 text-sm font-bold whitespace-nowrap"
+        >
+          {fmtMultiplier(multiplier)} 份 <PencilIcon size={13} />
+        </button>
+      </div>
+
+      {/* 總卡路里卡（撳嚟改總量） */}
+      <button
+        type="button"
+        onClick={() =>
+          openTotalEdit('calories', '總卡路里', 'kcal', '1')
+        }
+        className="glass-card mt-3 block w-full p-4 text-center"
+      >
+        <span className="text-4xl font-bold">🔥 {totals.calories}</span>
+        <span className="ml-1 text-lg text-white/50">kcal</span>
+      </button>
+
+      {/* 2×3 營養總覽格（撳嚟改總量） */}
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {TOTAL_FIELDS.map((f) => (
+          <button
+            key={f.field}
+            type="button"
+            onClick={() => openTotalEdit(f.field, f.label, f.unit, f.step)}
+            className="glass-inset rounded-2xl p-3 text-center"
+          >
+            <p className="text-xs text-white/50">{f.label}</p>
+            <p className="mt-0.5 text-lg font-bold">
+              {totals[f.field]}
+              <span className="text-xs font-normal text-white/40">
+                {f.unit}
+              </span>
+            </p>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-center text-xs text-white/40">
+        撳任何一個數字直接改總量，食材會按比例跟住郁
+      </p>
+
+      {/* 食材單行列表 */}
+      <div className="mt-4 flex items-baseline justify-between">
+        <h2 className="text-lg font-bold">食材</h2>
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="text-sm font-bold text-[#FF9F0A]"
+        >
+          ＋ 加多樣
+        </button>
+      </div>
+      <div className="mt-2 space-y-2">
+        {current.map((item, i) => {
+          const grams = parseGrams(item.portionDescription)
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setEditingIndex(i)}
+              className={`glass-subcard flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-3 text-left ${
+                item.isExcluded ? 'opacity-50' : ''
+              }`}
+            >
+              <span
+                className={`min-w-0 flex-1 truncate font-bold ${
+                  item.isExcluded ? 'line-through' : ''
+                }`}
+              >
+                {item.nameZH}{' '}
+                <span className="font-normal text-white/50">
+                  · {Math.round(item.calories)} kcal
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-0.5 text-sm text-white/50">
+                {grams !== null ? `${grams}g` : item.portionDescription}
+                <ChevronRightIcon size={16} />
+              </span>
+            </button>
+          )
+        })}
+        {current.length === 0 && (
+          <p className="glass-inset rounded-2xl p-4 text-center text-sm text-white/50">
+            未有食材，撳「＋ 加多樣」加返啲啦
+          </p>
+        )}
+      </div>
+
+      {/* Roast 評語卡＋駁佢 */}
       {loadedEntry.roastComment && (
-        <div className="mt-4 rounded-3xl border border-[#FF9F0A]/25 bg-[#FF9F0A]/15 p-4">
+        <div className="glass-roast mt-4 rounded-3xl p-4 ring-1 ring-[#FF9F0A]/25 backdrop-blur-xl">
           <p className="text-sm font-bold text-amber-200">
-            {loadedEntry.roastEmoji ?? '💬'} {MEAL_LABELS[loadedEntry.mealType as keyof typeof MEAL_LABELS] ?? loadedEntry.mealType} · {dateStr}
+            {loadedEntry.roastEmoji ?? '💬'} Roast
           </p>
           <p className="mt-1 leading-relaxed">{loadedEntry.roastComment}</p>
           {roastHistory.length > 0 && (
@@ -395,256 +688,117 @@ export default function ResultPage({
               </ul>
             </details>
           )}
-        </div>
-      )}
-
-      <div className="mt-4 glass-card p-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-bold">呢餐有咩</h2>
-          <span className="text-sm text-white/50">
-            合計 <b className="text-lg text-white">{totals.calories}</b> kcal
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-white/50">
-          蛋白質 {totals.proteinG}g · 碳水 {totals.carbsG}g · 脂肪 {totals.fatG}g
-        </p>
-        <p className="mt-0.5 text-sm text-white/50">
-          糖 {totals.sugarG}g · 纖維 {totals.fiberG}g · 鈉 {totals.sodiumMg}mg
-        </p>
-
-        <div className="mt-3 space-y-3">
-          {current.map((item, i) => (
-            <div
-              key={i}
-              className={`rounded-2xl border p-3 ${
-                item.isExcluded
-                  ? 'border-white/15 bg-white/[0.04] opacity-50'
-                  : 'border-[#FF9F0A]/40 bg-[#FF9F0A]/10'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={!item.isExcluded}
-                  onChange={(e) =>
-                    updateItem(i, { isExcluded: !e.target.checked })
-                  }
-                  className="h-5 w-5 accent-[#FF9F0A]"
-                  aria-label="計入呢樣"
-                />
+          {(loadedEntry.rebuttable ?? true) && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setRebutOpen((v) => !v)}
+                className="glass-subcard rounded-full px-3 py-1.5 text-sm font-bold"
+              >
+                駁佢
+              </button>
+            </div>
+          )}
+          {rebutOpen && (loadedEntry.rebuttable ?? true) && (
+            <div className="mt-2">
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={item.nameZH}
-                  onChange={(e) => updateItem(i, { nameZH: e.target.value })}
-                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 font-bold outline-none focus:border-[#FF9F0A]"
+                  value={rebuttal}
+                  onChange={(e) => setRebuttal(e.target.value)}
+                  placeholder="例如：呢碟根本唔油，你睇錯啦"
+                  className="glass-input min-w-0 flex-1"
                 />
                 <button
                   type="button"
-                  onClick={() => removeItem(i)}
-                  className="rounded-lg px-2 py-1 text-red-400"
-                  aria-label="刪除呢樣"
+                  disabled={rebutting || !rebuttal.trim()}
+                  onClick={onRebut}
+                  className="shrink-0 rounded-xl bg-white/10 px-4 py-2 font-bold text-white disabled:opacity-40"
                 >
-                  ✕
+                  {rebutting ? '駁緊…' : '送出'}
                 </button>
               </div>
-              <div className="mt-2 grid grid-cols-4 gap-2 text-sm">
-                <label className="col-span-2">
-                  <span className="text-xs text-white/50">份量</span>
-                  <input
-                    type="text"
-                    value={item.portionDescription}
-                    onChange={(e) =>
-                      updateItem(i, { portionDescription: e.target.value })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">卡路里</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={item.calories}
-                    onChange={(e) =>
-                      updateItem(i, {
-                        calories: Number(e.target.value) || 0,
-                      })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">蛋白質 g</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={item.proteinG}
-                    onChange={(e) =>
-                      updateItem(i, { proteinG: Number(e.target.value) || 0 })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">碳水 g</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={item.carbsG}
-                    onChange={(e) =>
-                      updateItem(i, { carbsG: Number(e.target.value) || 0 })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">脂肪 g</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={item.fatG}
-                    onChange={(e) =>
-                      updateItem(i, { fatG: Number(e.target.value) || 0 })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">糖 g</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={item.sugarG ?? 0}
-                    onChange={(e) =>
-                      updateItem(i, { sugarG: Number(e.target.value) || 0 })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">纖維 g</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={item.fiberG ?? 0}
-                    onChange={(e) =>
-                      updateItem(i, { fiberG: Number(e.target.value) || 0 })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <label>
-                  <span className="text-xs text-white/50">鈉 mg</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={item.sodiumMg ?? 0}
-                    onChange={(e) =>
-                      updateItem(i, { sodiumMg: Number(e.target.value) || 0 })
-                    }
-                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
-                  />
-                </label>
-                <span className="self-end text-xs text-white/40">
-                  可信度 {Math.round(item.confidence * 100)}%
-                </span>
-              </div>
+              <p className="mt-1 text-xs text-white/40">
+                AI 會用同一語氣回嘴一句，舊評語會留低。
+              </p>
+              {rebutError && (
+                <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
+                  {rebutError}
+                </p>
+              )}
             </div>
-          ))}
-        </div>
-
-        <GlassButton
-          variant="amber"
-          onClick={onSave}
-          className="mt-4 w-full rounded-2xl py-3"
-        >
-          💾 儲存呢餐
-        </GlassButton>
-
-        <button
-          type="button"
-          onClick={onSaveFavorite}
-          className="mt-2 w-full rounded-2xl glass-subcard py-3 font-bold text-[#FF9F0A] ring-1 ring-[#FF9F0A]/40"
-        >
-          ⭐ 收藏呢餐
-        </button>
-        {savedMsg && (
-          <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
-            {savedMsg}
-          </p>
-        )}
-
-        <button
-          type="button"
-          onClick={onExportHealth}
-          className="mt-2 w-full rounded-2xl glass-subcard py-3 font-bold text-red-400 ring-1 ring-red-500/40"
-        >
-          🍎 同步呢餐去 Apple Health
-        </button>
-        {healthMsg && (
-          <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
-            {healthMsg}
-          </p>
-        )}
-        <p className="mt-2 text-center text-xs text-white/40">
-          經 iOS 捷徑寫入 Apple Health（只適用於 iOS；捷徑名喺「設定」改）
-        </p>
-      </div>
-
-      {(loadedEntry.rebuttable ?? true) && loadedEntry.roastComment && (
-        <div className="mt-4 glass-card p-4">
-          <h3 className="font-bold">😤 唔服？駁佢</h3>
-          <p className="mt-1 text-sm text-white/50">
-            寫低你嘅反駁，AI 會用同一語氣回嘴一句。舊評語會留低，之後掃描唔會重複講。
-          </p>
-          <div className="mt-2 flex gap-2">
-            <input
-              type="text"
-              value={rebuttal}
-              onChange={(e) => setRebuttal(e.target.value)}
-              placeholder="例如：呢碟根本唔油，你睇錯啦"
-              className="min-w-0 flex-1 glass-input"
-            />
-            <button
-              type="button"
-              disabled={rebutting || !rebuttal.trim()}
-              onClick={onRebut}
-              className="rounded-xl bg-white/10 px-4 py-2 font-bold text-white disabled:opacity-40"
-            >
-              {rebutting ? '駁緊…' : '駁佢'}
-            </button>
-          </div>
-          {rebutError && (
-            <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
-              {rebutError}
-            </p>
           )}
         </div>
       )}
 
-      <div className="mt-4 glass-card p-4">
-        <h3 className="font-bold">AI 認錯咗？糾正佢</h3>
+      {/* 底部懸浮固定操作欄 */}
+      <div className="sticky bottom-[max(88px,calc(env(safe-area-inset-bottom)+76px))] z-20 mt-6 md:bottom-6">
+        <div className="glass-nav flex gap-2 rounded-full p-2">
+          <button
+            type="button"
+            onClick={() => setCorrectOpen(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-3 font-bold text-amber-200 ring-1 ring-[#FF9F0A]/50"
+          >
+            <SparklesIcon size={18} /> AI 修正
+          </button>
+          <button
+            type="button"
+            onClick={onSaveAndBack}
+            className="glass-cta-amber flex-[1.3] rounded-full px-3 py-3 font-bold text-white"
+          >
+            搞掂
+          </button>
+        </div>
+      </div>
+
+      {/* 單一食材編輯窗 */}
+      {editingItem && (
+        <IngredientSheet
+          item={editingItem}
+          onSave={(patch) => {
+            if (editingIndex !== null) applyIngredientPatch(editingIndex, patch)
+            setEditingIndex(null)
+          }}
+          onDelete={() => {
+            if (editingIndex !== null) removeItem(editingIndex)
+            setEditingIndex(null)
+          }}
+          onClose={() => setEditingIndex(null)}
+        />
+      )}
+
+      {/* ＋加多樣 */}
+      <AddIngredientModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={addComponent}
+      />
+
+      {/* ✨ AI 修正 */}
+      <GlassModal
+        open={correctOpen}
+        onClose={() => setCorrectOpen(false)}
+        variant="dialog"
+      >
+        <h3 className="flex items-center gap-2 text-lg font-bold">
+          <SparklesIcon size={20} className="text-[#FF9F0A]" /> AI 修正
+        </h3>
         <p className="mt-1 text-sm text-white/50">
           輸入正確食物名（逗號分隔），AI 會用同一張相重新分析。
         </p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-3 flex gap-2">
           <input
             type="text"
             value={correctTitles}
             onChange={(e) => setCorrectTitles(e.target.value)}
             placeholder="例如：叉燒飯，凍檸茶"
-            className="min-w-0 flex-1 glass-input"
+            className="glass-input min-w-0 flex-1"
           />
           <button
             type="button"
             disabled={correcting || !correctTitles.trim()}
             onClick={onCorrect}
-            className="rounded-xl bg-white/10 px-4 py-2 font-bold text-white disabled:opacity-40"
+            className="glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
           >
             {correcting ? '糾正緊…' : '糾正'}
           </button>
@@ -654,64 +808,111 @@ export default function ResultPage({
             {correctError}
           </p>
         )}
-      </div>
+      </GlassModal>
 
-      <div className="mt-4 glass-card p-4">
-        <h3 className="font-bold">＋ 手動加食物（離線食物庫）</h3>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder="搜尋食物，例如：鯖魚、米飯…"
-          className="mt-2 glass-input"
-        />
-        {searching && <p className="mt-2 text-sm text-white/40">搵緊…</p>}
-        {searchResults.length > 0 && (
-          <ul className="mt-2 divide-y divide-white/10">
-            {searchResults.map((food) => (
-              <li
-                key={food.id}
-                className="flex items-center justify-between gap-2 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-bold">
-                    {food.name}{' '}
-                    <span className="font-normal text-white/40">
-                      {food.nameEN ?? ''}
-                    </span>
-                  </p>
-                  <p className="text-xs text-white/50">
-                    {food.category} · 每100克 {food.caloriesPerHundredG} kcal
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => addLocalFood(food, 100)}
-                  className="shrink-0 rounded-xl bg-[#FF9F0A]/15 px-3 py-1.5 text-sm font-bold text-amber-200"
-                >
-                  ＋100克
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <button
-        type="button"
-        onClick={onDelete}
-        className={`mt-4 w-full rounded-2xl py-3 font-bold ${
-          confirmDelete
-            ? 'bg-red-600 text-white'
-            : 'bg-white/[0.06] text-red-400 ring-1 ring-red-500/40'
-        }`}
+      {/* 整體份量 */}
+      <GlassModal
+        open={portionOpen}
+        onClose={() => setPortionOpen(false)}
+        variant="dialog"
       >
-        {confirmDelete ? '再撳一次確認刪除' : '刪除呢餐'}
-      </button>
+        <h3 className="text-lg font-bold">整體份量</h3>
+        <p className="mt-1 text-sm text-white/50">
+          成餐一次過縮放，所有食材會按比例跟住郁。
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[0.5, 1, 1.5, 2].map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => applyMultiplier(m)}
+              className={`rounded-full px-4 py-2 text-sm font-bold ${
+                multiplier === m
+                  ? 'glass-cta-amber text-white'
+                  : 'glass-subcard text-white/80'
+              }`}
+            >
+              {fmtMultiplier(m)} 份
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0.1"
+            max="10"
+            step="0.5"
+            value={portionCustom}
+            onChange={(e) => setPortionCustom(e.target.value)}
+            placeholder="自訂份數，例如 1.25"
+            aria-label="自訂份數"
+            className="glass-input min-w-0 flex-1"
+          />
+          <button
+            type="button"
+            disabled={
+              portionCustom.trim() === '' ||
+              !Number.isFinite(Number(portionCustom)) ||
+              Number(portionCustom) <= 0
+            }
+            onClick={() => applyMultiplier(Number(portionCustom))}
+            className="glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
+          >
+            套用
+          </button>
+        </div>
+      </GlassModal>
+
+      {/* 改總量 */}
+      <GlassModal
+        open={totalEdit !== null}
+        onClose={() => setTotalEdit(null)}
+        variant="dialog"
+      >
+        {totalEdit && (
+          <>
+            <h3 className="text-lg font-bold">改總{totalEdit.label}</h3>
+            <p className="mt-1 text-sm text-white/50">
+              而家 {totals[totalEdit.field]} {totalEdit.unit}
+              ，未剔除嘅食材會按比例跟住郁。
+            </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min="1"
+                step={totalEdit.step}
+                value={totalEditValue}
+                onChange={(e) => setTotalEditValue(e.target.value)}
+                aria-label={`總${totalEdit.label}`}
+                className="glass-input min-w-0 flex-1"
+              />
+              <span className="shrink-0 self-center font-bold text-white/60">
+                {totalEdit.unit}
+              </span>
+              <button
+                type="button"
+                disabled={
+                  totalEditValue.trim() === '' ||
+                  !Number.isFinite(Number(totalEditValue)) ||
+                  Number(totalEditValue) <= 0 ||
+                  totals[totalEdit.field] <= 0
+                }
+                onClick={applyTotalEdit}
+                className="glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
+              >
+                套用
+              </button>
+            </div>
+            {totals[totalEdit.field] <= 0 && (
+              <p className="mt-2 text-sm text-white/50">
+                而家總數係 0，改唔到比例——請先加食材。
+              </p>
+            )}
+          </>
+        )}
+      </GlassModal>
     </div>
   )
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10
 }

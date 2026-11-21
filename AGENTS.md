@@ -33,6 +33,13 @@
   TDEE（唔係每日目標卡路里）做基準。唔准改返「無記數當食 0」或者「用目標
   卡路里計」嗰套舊算法。詳見 DESIGN.md §10。
 
+## 結果頁（唔准展開大表單）
+
+- 結果頁食材列表必須係單行玻璃條，撳一行開 `IngredientSheet` 單獨編輯——
+  唔准將每樣食材展開成成堆輸入框。份數縮放唯一真相來源係
+  `src/pages/resultUtils.ts`（base × multiplier）；克數由 portionDescription
+  解析，唔准為咗存克數而改 Dexie schema。詳見 DESIGN.md §11。
+
 ## 驗收（改完先交，唔准直接 push）
 
 1. `npm run build` 零錯誤（TypeScript＋打包）。
