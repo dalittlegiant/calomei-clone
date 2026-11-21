@@ -8,6 +8,7 @@ import {
   effectiveTarget,
   WATER_TARGET_ML,
 } from '../lib/nutrition'
+import { GlassCard } from '../components/ui'
 import {
   dayStartMinutes,
   getDayStart,
@@ -212,7 +213,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 pb-8">
-      <div className="mt-6 rounded-3xl bg-amber-500 p-4 text-white">
+      <div className="mt-6 rounded-3xl glass-cta-amber p-4 text-white">
         <p className="text-sm opacity-90">今日案底</p>
         <p className="text-3xl font-bold">
           {todayTotals.calories}{' '}
@@ -231,11 +232,11 @@ export default function HistoryPage({ profile, onOpen }: Props) {
         </p>
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
+      <GlassCard className="mt-4 p-4">
         <div className="flex items-baseline justify-between">
           <h3 className="font-bold">💧 今日飲水</h3>
-          <span className="text-sm text-stone-500 dark:text-stone-400">
-            <b className="text-lg text-stone-800 dark:text-stone-100">
+          <span className="text-sm text-white/50">
+            <b className="text-lg text-white">
               {Math.floor(waterTotal / BOTTLE_ML)} /{' '}
               {Math.round(WATER_TARGET_ML / BOTTLE_ML)} 樽
             </b>{' '}
@@ -246,21 +247,21 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           <button
             type="button"
             onClick={() => addWater(BOTTLE_ML)}
-            className="rounded-xl bg-sky-500 py-2 font-bold text-white active:bg-sky-600"
+            className="rounded-xl glass-cta-teal py-2 font-bold text-white"
           >
             +1 樽
           </button>
           <button
             type="button"
             onClick={() => addWater(250)}
-            className="rounded-xl bg-sky-100 dark:bg-sky-950 py-2 font-bold text-sky-800 dark:text-sky-200 active:bg-sky-200"
+            className="rounded-xl bg-[#14B8A6]/15 py-2 font-bold text-teal-200"
           >
             +250 ml
           </button>
           <button
             type="button"
             onClick={() => addWater(100)}
-            className="rounded-xl bg-sky-100 dark:bg-sky-950 py-2 font-bold text-sky-800 dark:text-sky-200 active:bg-sky-200"
+            className="rounded-xl bg-[#14B8A6]/15 py-2 font-bold text-teal-200"
           >
             +100 ml
           </button>
@@ -272,13 +273,13 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={customWater}
             onChange={(e) => setCustomWater(e.target.value)}
             placeholder="自訂毫升"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-sky-400"
+            className="min-w-0 flex-1 rounded-xl border border-white/15 px-3 py-2 outline-none focus:border-[#14B8A6]"
           />
           <button
             type="button"
             disabled={!Number(customWater)}
             onClick={addCustomWater}
-            className="rounded-xl bg-sky-500 px-4 py-2 font-bold text-white disabled:opacity-40"
+            className="rounded-xl glass-cta-teal px-4 py-2 font-bold text-white disabled:opacity-40"
           >
             加入
           </button>
@@ -286,7 +287,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             type="button"
             disabled={(waterToday ?? []).length === 0}
             onClick={undoWater}
-            className="rounded-xl bg-white dark:bg-stone-900 px-3 py-2 font-bold text-stone-500 dark:text-stone-400 ring-1 ring-stone-200 dark:ring-stone-700 disabled:opacity-40"
+            className="rounded-xl glass-subcard px-3 py-2 font-bold text-white/50 disabled:opacity-40"
           >
             撤銷
           </button>
@@ -295,28 +296,28 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           type="button"
           disabled={waterTotal <= 0}
           onClick={exportWater}
-          className="mt-2 w-full rounded-2xl bg-white dark:bg-stone-900 py-2.5 font-bold text-red-500 ring-1 ring-red-200 disabled:opacity-40 active:bg-red-50"
+          className="mt-2 w-full rounded-2xl glass-subcard py-2.5 font-bold text-red-400 ring-1 ring-red-500/40 disabled:opacity-40"
         >
           🍎 同步今日飲水去 Apple Health
         </button>
         {waterMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 dark:bg-green-950 px-3 py-2 text-center text-sm text-green-700 dark:text-green-300">
+          <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
             {waterMsg}
           </p>
         )}
-      </div>
+      </GlassCard>
 
-      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
+      <GlassCard className="mt-4 p-4">
         <h3 className="font-bold">📝 快速記錄</h3>
 
-        <p className="mt-3 text-sm font-bold text-stone-600 dark:text-stone-300">🏃 運動</p>
+        <p className="mt-3 text-sm font-bold text-white/60">🏃 運動</p>
         <div className="mt-1 flex gap-2">
           <input
             type="text"
             value={exName}
             onChange={(e) => setExName(e.target.value)}
             placeholder="做咩運動？"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 glass-input"
           />
           <input
             type="number"
@@ -324,7 +325,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={exMinutes}
             onChange={(e) => setExMinutes(e.target.value)}
             placeholder="分鐘"
-            className="w-20 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+            className="w-20 glass-input"
           />
           <input
             type="number"
@@ -332,13 +333,13 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={exKcal}
             onChange={(e) => setExKcal(e.target.value)}
             placeholder="kcal"
-            className="w-20 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+            className="w-20 glass-input"
           />
           <button
             type="button"
             disabled={!exName.trim() || !Number(exMinutes)}
             onClick={addExercise}
-            className="shrink-0 rounded-xl bg-amber-500 px-3 py-2 font-bold text-white disabled:opacity-40"
+            className="shrink-0 rounded-xl glass-cta-amber px-3 py-2 font-bold text-white disabled:opacity-40"
           >
             加入
           </button>
@@ -350,7 +351,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
               .map((e) => (
                 <li
                   key={e.id}
-                  className="flex items-center justify-between rounded-xl bg-amber-50 dark:bg-amber-950 px-3 py-1.5"
+                  className="flex items-center justify-between rounded-xl bg-[#FF9F0A]/10 px-3 py-1.5"
                 >
                   <span>
                     {e.name} · {e.durationMinutes} 分鐘 · {e.caloriesBurned}{' '}
@@ -359,20 +360,20 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                   <button
                     type="button"
                     onClick={() => db.exercise_entries.delete(e.id)}
-                    className="px-2 text-red-500"
+                    className="px-2 text-red-400"
                     aria-label="刪除運動記錄"
                   >
                     ✕
                   </button>
                 </li>
               ))}
-            <li className="px-1 text-xs text-stone-500 dark:text-stone-400">
+            <li className="px-1 text-xs text-white/50">
               今日運動共燒 {exerciseKcal} kcal
             </li>
           </ul>
         )}
 
-        <p className="mt-4 text-sm font-bold text-stone-600 dark:text-stone-300">⚖️ 體重／體脂</p>
+        <p className="mt-4 text-sm font-bold text-white/60">⚖️ 體重／體脂</p>
         <div className="mt-1 flex gap-2">
           <input
             type="number"
@@ -381,7 +382,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={weightKg}
             onChange={(e) => setWeightKg(e.target.value)}
             placeholder="體重 kg"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 glass-input"
           />
           <input
             type="number"
@@ -390,19 +391,19 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={bodyFatPct}
             onChange={(e) => setBodyFatPct(e.target.value)}
             placeholder="體脂 %（可選）"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 glass-input"
           />
           <button
             type="button"
             disabled={!Number(weightKg)}
             onClick={addWeight}
-            className="shrink-0 rounded-xl bg-amber-500 px-3 py-2 font-bold text-white disabled:opacity-40"
+            className="shrink-0 rounded-xl glass-cta-amber px-3 py-2 font-bold text-white disabled:opacity-40"
           >
             記錄
           </button>
         </div>
         {(latestWeight ?? [])[0] && (
-          <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
+          <p className="mt-2 text-sm text-white/50">
             最新：
             {(latestWeight ?? [])[0].weightKG} kg
             {(latestBodyFat ?? [])[0]
@@ -416,18 +417,18 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             <button
               type="button"
               onClick={exportWeight}
-              className="ml-2 font-bold text-red-500"
+              className="ml-2 font-bold text-red-400"
             >
               🍎 同步去 Apple Health
             </button>
           </p>
         )}
         {logMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 dark:bg-green-950 px-3 py-2 text-center text-sm text-green-700 dark:text-green-300">
+          <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
             {logMsg}
           </p>
         )}
-      </div>
+      </GlassCard>
 
       <div className="mt-4 flex gap-2">
         {(['all', 'breakfast', 'lunch', 'dinner'] as Filter[]).map((f) => (
@@ -437,8 +438,8 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             onClick={() => setFilter(f)}
             className={`flex-1 rounded-xl py-2 text-sm font-bold ${
               filter === f
-                ? 'bg-amber-500 text-white'
-                : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 ring-1 ring-stone-200 dark:ring-stone-700'
+                ? 'glass-cta-amber text-white'
+                : 'glass-subcard text-white/60 ring-1 ring-white/15'
             }`}
           >
             {f === 'all' ? '全部' : MEAL_LABELS[f]}
@@ -447,7 +448,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
       </div>
 
       {groups.length === 0 && (
-        <p className="mt-8 text-center text-stone-400 dark:text-stone-500">
+        <p className="mt-8 text-center text-white/40">
           仲未有案底 — 撳「又食嘢？加啦」認第一餐啦 🍽️
         </p>
       )}
@@ -456,7 +457,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
         <div key={dateLabel} className="mt-6">
           <div className="flex items-baseline justify-between px-1">
             <h3 className="font-bold">{dayLabel(dateLabel)}</h3>
-            <span className="text-sm text-stone-500 dark:text-stone-400">
+            <span className="text-sm text-white/50">
               {list.reduce((a, e) => a + e.calories, 0)} kcal
             </span>
           </div>
@@ -466,7 +467,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                 key={e.id}
                 type="button"
                 onClick={() => onOpen(e.id)}
-                className="flex w-full items-center gap-3 rounded-2xl bg-white dark:bg-stone-900 p-3 text-left shadow-sm active:bg-amber-50"
+                className="flex w-full items-center gap-3 glass-subcard p-3 text-left"
               >
                 {e.imageDataUrl ? (
                   <img
@@ -475,13 +476,13 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                     className="h-14 w-14 shrink-0 rounded-xl object-cover"
                   />
                 ) : (
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900 text-2xl">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#FF9F0A]/15 text-2xl">
                     🍽️
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-bold">{e.name}</span>
-                  <span className="block text-sm text-stone-500 dark:text-stone-400">
+                  <span className="block text-sm text-white/50">
                     {MEAL_LABELS[e.mealType as MealType] ?? e.mealType} ·{' '}
                     {new Date(e.date).toLocaleTimeString('zh-HK', {
                       hour: '2-digit',

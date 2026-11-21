@@ -8,6 +8,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import { inferMealType } from '../lib/image'
 import { BOTTLE_ML } from '../lib/nutrition'
+import { GlassModal } from '../components/ui'
 import {
   dayStartMinutes,
   getDayStart,
@@ -238,20 +239,14 @@ export default function AddSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
-      <button
-        type="button"
-        aria-label="關閉"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/50"
-      />
-      <div className="no-scrollbar relative max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-4 pb-8 shadow-xl dark:bg-stone-900">
+    <GlassModal open={open} onClose={onClose} variant="sheet">
+      <div>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">{titles[view]}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-stone-100 px-3 py-1 font-bold text-stone-500 dark:bg-stone-800 dark:text-stone-300"
+            className="rounded-full bg-white/[0.06] px-3 py-1 font-bold text-white/60"
             aria-label="關閉"
           >
             ✕
@@ -262,7 +257,7 @@ export default function AddSheet({
           <button
             type="button"
             onClick={() => setView('menu')}
-            className="mt-2 font-bold text-amber-600 dark:text-amber-400"
+            className="mt-2 font-bold text-[#FF9F0A]"
           >
             ← 返回
           </button>
@@ -289,7 +284,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => cameraRef.current?.click()}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">📸</span>
                 <span className="mt-1 block font-bold">影相</span>
@@ -297,7 +292,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => galleryRef.current?.click()}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">🖼️</span>
                 <span className="mt-1 block font-bold">上載</span>
@@ -305,7 +300,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('search')}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">🔍</span>
                 <span className="mt-1 block font-bold">搜尋</span>
@@ -313,7 +308,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('saved')}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">⭐</span>
                 <span className="mt-1 block font-bold">收藏</span>
@@ -321,7 +316,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={onScanText}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">⌨️</span>
                 <span className="mt-1 block font-bold">打字</span>
@@ -329,7 +324,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('exercise')}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">🏃</span>
                 <span className="mt-1 block font-bold">運動</span>
@@ -337,7 +332,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('water')}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">💧</span>
                 <span className="mt-1 block font-bold">飲水</span>
@@ -345,13 +340,13 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('weigh')}
-                className="rounded-2xl bg-amber-50 p-4 text-center active:bg-amber-100 dark:bg-amber-950 dark:active:bg-amber-900"
+                className="rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">⚖️</span>
                 <span className="mt-1 block font-bold">上磅</span>
               </button>
             </div>
-            <p className="mt-4 text-center text-xs text-stone-400 dark:text-stone-500">
+            <p className="mt-4 text-center text-xs text-white/40">
               個人版，冇收費、冇配額，想記幾多次都得。
             </p>
           </>
@@ -364,15 +359,15 @@ export default function AddSheet({
               value={searchQuery}
               onChange={(e) => onSearch(e.target.value)}
               placeholder="搜尋食物，例如：鯖魚、米飯…"
-              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+              className="glass-input"
             />
             {searching && (
-              <p className="mt-2 text-sm text-stone-400 dark:text-stone-500">搵緊…</p>
+              <p className="mt-2 text-sm text-white/40">搵緊…</p>
             )}
             {selectedFood && (
-              <div className="mt-3 rounded-2xl bg-amber-50 p-3 dark:bg-amber-950">
+              <div className="mt-3 rounded-2xl bg-[#FF9F0A]/10 p-3">
                 <p className="font-bold">{selectedFood.name}</p>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
+                <p className="text-xs text-white/50">
                   每100克 {selectedFood.caloriesPerHundredG} kcal
                 </p>
                 <div className="mt-2 flex gap-2">
@@ -382,7 +377,7 @@ export default function AddSheet({
                     value={grams}
                     onChange={(e) => setGrams(e.target.value)}
                     placeholder="克數"
-                    className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                    className="min-w-0 flex-1 glass-input"
                   />
                   <button
                     type="button"
@@ -398,7 +393,7 @@ export default function AddSheet({
                         servingSize: `約${grams}克`,
                       })
                     }}
-                    className="rounded-xl bg-amber-500 px-4 py-2 font-bold text-white disabled:opacity-40"
+                    className="rounded-xl glass-cta-amber px-4 py-2 font-bold text-white disabled:opacity-40"
                   >
                     加入
                   </button>
@@ -406,7 +401,7 @@ export default function AddSheet({
               </div>
             )}
             {searchResults.length > 0 && (
-              <ul className="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+              <ul className="mt-2 divide-y divide-white/10">
                 {searchResults.map((food) => (
                   <li key={food.id}>
                     <button
@@ -420,23 +415,23 @@ export default function AddSheet({
                       <span className="min-w-0">
                         <span className="block truncate font-bold">
                           {food.name}{' '}
-                          <span className="font-normal text-stone-400 dark:text-stone-500">
+                          <span className="font-normal text-white/40">
                             {food.nameEN ?? ''}
                           </span>
                         </span>
-                        <span className="block text-xs text-stone-500 dark:text-stone-400">
+                        <span className="block text-xs text-white/50">
                           {food.category} · 每100克 {food.caloriesPerHundredG}{' '}
                           kcal
                         </span>
                       </span>
-                      <span className="shrink-0 font-bold text-amber-600 dark:text-amber-400">›</span>
+                      <span className="shrink-0 font-bold text-[#FF9F0A]">›</span>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
             {searchQuery.trim() && !searching && searchResults.length === 0 && (
-              <p className="mt-3 text-center text-sm text-stone-400 dark:text-stone-500">
+              <p className="mt-3 text-center text-sm text-white/40">
                 食物庫搵唔到，試下打字叫 AI 估啦。
               </p>
             )}
@@ -446,7 +441,7 @@ export default function AddSheet({
         {view === 'saved' && (
           <div className="mt-3">
             {(savedFoods ?? []).length === 0 && (
-              <p className="py-6 text-center text-stone-400 dark:text-stone-500">
+              <p className="py-6 text-center text-white/40">
                 未收藏任何食物 — 去結果頁撳「收藏呢餐」就得。
               </p>
             )}
@@ -454,7 +449,7 @@ export default function AddSheet({
               {(savedFoods ?? []).map((f) => (
                 <li
                   key={f.id}
-                  className="flex items-center gap-2 rounded-2xl bg-stone-50 p-3 dark:bg-stone-800"
+                  className="flex items-center gap-2 rounded-2xl glass-subcard p-3"
                 >
                   <button
                     type="button"
@@ -471,14 +466,14 @@ export default function AddSheet({
                     className="min-w-0 flex-1 text-left"
                   >
                     <span className="block truncate font-bold">{f.name}</span>
-                    <span className="block text-xs text-stone-500 dark:text-stone-400">
+                    <span className="block text-xs text-white/50">
                       {f.calories} kcal · {f.servingSize || '一份'}
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => db.saved_foods.delete(f.id)}
-                    className="px-2 text-red-500"
+                    className="px-2 text-red-400"
                     aria-label="刪除收藏"
                   >
                     ✕
@@ -496,7 +491,7 @@ export default function AddSheet({
               value={exName}
               onChange={(e) => setExName(e.target.value)}
               placeholder="做咩運動？例如：行路、跑步"
-              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+              className="glass-input"
             />
             <div className="mt-2 flex gap-2">
               <input
@@ -505,7 +500,7 @@ export default function AddSheet({
                 value={exMinutes}
                 onChange={(e) => setExMinutes(e.target.value)}
                 placeholder="分鐘"
-                className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                className="min-w-0 flex-1 glass-input"
               />
               <input
                 type="number"
@@ -513,14 +508,14 @@ export default function AddSheet({
                 value={exKcal}
                 onChange={(e) => setExKcal(e.target.value)}
                 placeholder="燒幾多 kcal（可選）"
-                className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                className="min-w-0 flex-1 glass-input"
               />
             </div>
             <button
               type="button"
               disabled={!exName.trim() || !Number(exMinutes)}
               onClick={addExercise}
-              className="mt-3 w-full rounded-2xl bg-amber-500 py-3 font-bold text-white disabled:opacity-40"
+              className="mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
             >
               加入
             </button>
@@ -537,14 +532,14 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => addWater(BOTTLE_ML)}
-                className="rounded-2xl bg-sky-500 py-3 font-bold text-white active:bg-sky-600"
+                className="rounded-2xl glass-cta-teal py-3 font-bold text-white"
               >
                 +1 樽（500ml）
               </button>
               <button
                 type="button"
                 onClick={() => addWater(250)}
-                className="rounded-2xl bg-sky-100 py-3 font-bold text-sky-800 active:bg-sky-200 dark:bg-sky-950 dark:text-sky-200"
+                className="rounded-2xl bg-[#14B8A6]/15 py-3 font-bold text-teal-200"
               >
                 +250 ml
               </button>
@@ -556,7 +551,7 @@ export default function AddSheet({
                 value={customWater}
                 onChange={(e) => setCustomWater(e.target.value)}
                 placeholder="自訂毫升"
-                className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                className="min-w-0 flex-1 glass-input"
               />
               <button
                 type="button"
@@ -565,7 +560,7 @@ export default function AddSheet({
                   addWater(Number(customWater))
                   setCustomWater('')
                 }}
-                className="rounded-xl bg-sky-500 px-4 py-2 font-bold text-white disabled:opacity-40"
+                className="rounded-xl glass-cta-teal px-4 py-2 font-bold text-white disabled:opacity-40"
               >
                 加入
               </button>
@@ -573,7 +568,7 @@ export default function AddSheet({
                 type="button"
                 disabled={(waterToday ?? []).length === 0}
                 onClick={undoWater}
-                className="rounded-xl bg-white px-3 py-2 font-bold text-stone-500 ring-1 ring-stone-200 disabled:opacity-40 dark:bg-stone-900 dark:ring-stone-700"
+                className="rounded-xl glass-subcard px-3 py-2 font-bold text-white/50 disabled:opacity-40"
               >
                 撤銷
               </button>
@@ -581,7 +576,7 @@ export default function AddSheet({
             <button
               type="button"
               onClick={onClose}
-              className="mt-3 w-full rounded-2xl bg-stone-100 py-3 font-bold text-stone-700 dark:bg-stone-800 dark:text-stone-200"
+              className="mt-3 w-full rounded-2xl glass-subcard py-3 font-bold text-white/80"
             >
               完成
             </button>
@@ -592,7 +587,7 @@ export default function AddSheet({
           <div className="mt-3">
             <div className="grid grid-cols-2 gap-2">
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">體重 kg *</span>
+                <span className="text-xs font-bold text-white/60">體重 kg *</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -600,11 +595,11 @@ export default function AddSheet({
                   value={weightKg}
                   onChange={(e) => setWeightKg(e.target.value)}
                   placeholder="例如 64.0"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">體脂 %</span>
+                <span className="text-xs font-bold text-white/60">體脂 %</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -612,11 +607,11 @@ export default function AddSheet({
                   value={bodyFatPct}
                   onChange={(e) => setBodyFatPct(e.target.value)}
                   placeholder="例如 24.0"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">肌肉率 %（可選）</span>
+                <span className="text-xs font-bold text-white/60">肌肉率 %（可選）</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -624,11 +619,11 @@ export default function AddSheet({
                   value={musclePct}
                   onChange={(e) => setMusclePct(e.target.value)}
                   placeholder="例如 38.5"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">內臟脂肪（可選）</span>
+                <span className="text-xs font-bold text-white/60">內臟脂肪（可選）</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -636,12 +631,12 @@ export default function AddSheet({
                   value={visceral}
                   onChange={(e) => setVisceral(e.target.value)}
                   placeholder="例如 6"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
             </div>
             {weighMsg && (
-              <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+              <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
                 {weighMsg}
               </p>
             )}
@@ -649,13 +644,13 @@ export default function AddSheet({
               type="button"
               disabled={!Number(weightKg)}
               onClick={addWeight}
-              className="mt-3 w-full rounded-2xl bg-amber-500 py-3 font-bold text-white disabled:opacity-40"
+              className="mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
             >
               記錄
             </button>
           </div>
         )}
       </div>
-    </div>
+    </GlassModal>
   )
 }

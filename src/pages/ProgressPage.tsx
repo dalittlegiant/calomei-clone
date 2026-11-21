@@ -18,6 +18,7 @@ import {
   logDayKey,
   todayLogStartMs,
 } from '../lib/day'
+import { GlassCard } from '../components/ui'
 
 interface Props {
   profile: UserProfile
@@ -202,10 +203,10 @@ export default function ProgressPage({ profile }: Props) {
   return (
     <div className="mx-auto w-full max-w-lg px-4 pb-8 md:max-w-2xl">
       {/* Nutrition chart */}
-      <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm dark:bg-stone-900">
+      <GlassCard className="mt-4 p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-bold">📊 營養趨勢</h2>
-          <span className="text-sm text-stone-500 dark:text-stone-400">{windowLabel}</span>
+          <span className="text-sm text-white/50">{windowLabel}</span>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {NUTRIENTS.map((n) => (
@@ -215,8 +216,8 @@ export default function ProgressPage({ profile }: Props) {
               onClick={() => setNutrient(n.key)}
               className={`rounded-full px-3 py-1.5 text-sm font-bold ${
                 nutrient === n.key
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
+                  ? 'glass-cta-amber text-white'
+                  : 'bg-white/[0.06] text-white/60'
               }`}
             >
               {n.label}
@@ -230,7 +231,7 @@ export default function ProgressPage({ profile }: Props) {
             className="absolute left-0 right-0 border-t-2 border-dashed border-red-400"
             style={{ bottom: `${(limit / maxVal) * 100}%` }}
           >
-            <span className="absolute -top-5 right-0 rounded bg-red-100 px-1.5 py-0.5 text-xs font-bold text-red-600 dark:bg-red-950 dark:text-red-300">
+            <span className="absolute -top-5 right-0 rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-bold text-red-300">
               上限 {limit}
               {nutrientDef.unit}
             </span>
@@ -244,7 +245,7 @@ export default function ProgressPage({ profile }: Props) {
               >
                 <div
                   className={`w-full rounded-t-sm ${
-                    v > limit ? 'bg-red-400' : 'bg-amber-500'
+                    v > limit ? 'bg-red-400' : 'bg-[#FF9F0A]'
                   }`}
                   style={{ height: `${Math.max(v > 0 ? 2 : 0, (v / maxVal) * 100)}%` }}
                 />
@@ -252,7 +253,7 @@ export default function ProgressPage({ profile }: Props) {
             ))}
           </div>
         </div>
-        <div className="mt-1 flex justify-between text-xs text-stone-400 dark:text-stone-500">
+        <div className="mt-1 flex justify-between text-xs text-white/40">
           <span>{fmtDate(chartDays[0].startMs)}</span>
           <span>{fmtDate(chartDays[9].startMs)}</span>
           <span>{fmtDate(chartDays[19].startMs)}</span>
@@ -262,7 +263,7 @@ export default function ProgressPage({ profile }: Props) {
           <button
             type="button"
             onClick={() => setOffset((o) => o - 30)}
-            className="rounded-xl bg-stone-100 px-3 py-1.5 text-sm font-bold text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+            className="rounded-xl bg-white/[0.06] px-3 py-1.5 text-sm font-bold text-white/60"
           >
             ← 早 30 日
           </button>
@@ -270,34 +271,34 @@ export default function ProgressPage({ profile }: Props) {
             type="button"
             disabled={offset >= 0}
             onClick={() => setOffset((o) => Math.min(0, o + 30))}
-            className="rounded-xl bg-stone-100 px-3 py-1.5 text-sm font-bold text-stone-600 disabled:opacity-40 dark:bg-stone-800 dark:text-stone-300"
+            className="rounded-xl bg-stone-100 px-3 py-1.5 text-sm font-bold text-stone-600 disabled:opacity-40"
           >
             遲 30 日 →
           </button>
         </div>
-        <p className="mt-2 text-xs text-stone-400 dark:text-stone-500">
+        <p className="mt-2 text-xs text-white/40">
           紅柱 = 嗰日超咗上限。撳柱睇數字（長按／hover）。
         </p>
-      </section>
+      </GlassCard>
 
       {/* Body cards */}
-      <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm dark:bg-stone-900">
+      <GlassCard className="mt-4 p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-bold">🧍 身體</h2>
           <button
             type="button"
             onClick={() => setShowBodyForm((v) => !v)}
-            className="rounded-xl bg-amber-500 px-3 py-1.5 text-sm font-bold text-white"
+            className="rounded-xl glass-cta-amber px-3 py-1.5 text-sm font-bold text-white"
           >
             ＋ 記錄
           </button>
         </div>
 
         {showBodyForm && (
-          <div className="mt-3 rounded-2xl bg-amber-50 p-3 dark:bg-amber-950">
+          <div className="mt-3 rounded-2xl bg-[#FF9F0A]/10 p-3">
             <div className="grid grid-cols-2 gap-2">
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">體重 kg *</span>
+                <span className="text-xs font-bold text-white/60">體重 kg *</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -305,11 +306,11 @@ export default function ProgressPage({ profile }: Props) {
                   value={weightKg}
                   onChange={(e) => setWeightKg(e.target.value)}
                   placeholder="例如 64.0"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">體脂 %</span>
+                <span className="text-xs font-bold text-white/60">體脂 %</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -317,11 +318,11 @@ export default function ProgressPage({ profile }: Props) {
                   value={bodyFatPct}
                   onChange={(e) => setBodyFatPct(e.target.value)}
                   placeholder="例如 24.0"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">肌肉率 %（可選）</span>
+                <span className="text-xs font-bold text-white/60">肌肉率 %（可選）</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -329,11 +330,11 @@ export default function ProgressPage({ profile }: Props) {
                   value={musclePct}
                   onChange={(e) => setMusclePct(e.target.value)}
                   placeholder="例如 38.5"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
               <label>
-                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">內臟脂肪（可選）</span>
+                <span className="text-xs font-bold text-white/60">內臟脂肪（可選）</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -341,7 +342,7 @@ export default function ProgressPage({ profile }: Props) {
                   value={visceral}
                   onChange={(e) => setVisceral(e.target.value)}
                   placeholder="例如 6"
-                  className="mt-0.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 outline-none focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                  className="mt-0.5 glass-input"
                 />
               </label>
             </div>
@@ -349,26 +350,26 @@ export default function ProgressPage({ profile }: Props) {
               type="button"
               disabled={!Number(weightKg)}
               onClick={saveBody}
-              className="mt-2 w-full rounded-2xl bg-amber-500 py-2.5 font-bold text-white disabled:opacity-40"
+              className="mt-2 w-full rounded-2xl glass-cta-amber py-2.5 font-bold text-white disabled:opacity-40"
             >
               記錄
             </button>
           </div>
         )}
         {bodyMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-center text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
+          <p className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-center text-sm text-green-700">
             {bodyMsg}
           </p>
         )}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-stone-50 p-3 dark:bg-stone-800">
-            <p className="text-xs text-stone-500 dark:text-stone-400">體重</p>
+          <div className="rounded-2xl glass-subcard p-3">
+            <p className="text-xs text-white/50">體重</p>
             <p className="mt-0.5 text-xl font-bold">
               {latestWeight ? `${latestWeight.weightKG} kg` : '未有記錄'}
             </p>
             {latestWeight && profile.targetWeightKG && (
-              <p className="text-xs text-stone-500 dark:text-stone-400">
+              <p className="text-xs text-white/50">
                 目標 {profile.targetWeightKG} kg · 仲差{' '}
                 {round1(latestWeight.weightKG - profile.targetWeightKG)} kg
               </p>
@@ -378,7 +379,7 @@ export default function ProgressPage({ profile }: Props) {
                 {weightSpark.map((b, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-t-sm bg-amber-500"
+                    className="flex-1 rounded-t-sm bg-[#FF9F0A]"
                     style={{ height: `${b.h}%` }}
                     title={fmtDate(b.date)}
                   />
@@ -387,13 +388,13 @@ export default function ProgressPage({ profile }: Props) {
             )}
           </div>
 
-          <div className="rounded-2xl bg-stone-50 p-3 dark:bg-stone-800">
-            <p className="text-xs text-stone-500 dark:text-stone-400">體脂</p>
+          <div className="rounded-2xl glass-subcard p-3">
+            <p className="text-xs text-white/50">體脂</p>
             <p className="mt-0.5 text-xl font-bold">
               {latestBodyFat ? `${latestBodyFat.bodyFatPercentage}%` : '未有記錄'}
             </p>
             {latestBodyFat && prevBodyFat ? (
-              <p className="text-xs text-stone-500 dark:text-stone-400">
+              <p className="text-xs text-white/50">
                 {latestBodyFat.bodyFatPercentage > prevBodyFat.bodyFatPercentage
                   ? '↑'
                   : latestBodyFat.bodyFatPercentage < prevBodyFat.bodyFatPercentage
@@ -402,52 +403,52 @@ export default function ProgressPage({ profile }: Props) {
                 上次 {prevBodyFat.bodyFatPercentage}% · 再記先有趨勢
               </p>
             ) : (
-              <p className="text-xs text-stone-500 dark:text-stone-400">再記先有趨勢</p>
+              <p className="text-xs text-white/50">再記先有趨勢</p>
             )}
           </div>
 
-          <div className="rounded-2xl bg-stone-50 p-3 dark:bg-stone-800">
-            <p className="text-xs text-stone-500 dark:text-stone-400">肌肉率</p>
+          <div className="rounded-2xl glass-subcard p-3">
+            <p className="text-xs text-white/50">肌肉率</p>
             <p className="mt-0.5 text-xl font-bold">
               {latestBodyFat?.muscleRate ? `${latestBodyFat.muscleRate}%` : '未有記錄'}
             </p>
-            <p className="text-xs text-stone-500 dark:text-stone-400">
+            <p className="text-xs text-white/50">
               {latestBodyFat?.muscleRate ? '撳卡片睇全圖' : '撳 + 記錄'}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-stone-50 p-3 dark:bg-stone-800">
-            <p className="text-xs text-stone-500 dark:text-stone-400">內臟脂肪</p>
+          <div className="rounded-2xl glass-subcard p-3">
+            <p className="text-xs text-white/50">內臟脂肪</p>
             <p className="mt-0.5 text-xl font-bold">
               {latestBodyFat?.visceralFat ? `${latestBodyFat.visceralFat}` : '未有記錄'}
             </p>
-            <p className="text-xs text-stone-500 dark:text-stone-400">
+            <p className="text-xs text-white/50">
               {latestBodyFat?.visceralFat ? '撳卡片睇全圖' : '撳 + 記錄'}
             </p>
           </div>
 
-          <div className="col-span-2 rounded-2xl bg-stone-50 p-3 dark:bg-stone-800">
-            <p className="text-xs text-stone-500 dark:text-stone-400">BMI</p>
+          <div className="col-span-2 rounded-2xl glass-subcard p-3">
+            <p className="text-xs text-white/50">BMI</p>
             <p className="mt-0.5 text-xl font-bold">
               {latestWeight ? `${round1(latestBmi)} · ${bmiLabel(latestBmi)}` : '未有記錄'}
             </p>
             {latestWeight && latestBmi >= 23 && (
-              <p className="text-xs text-stone-500 dark:text-stone-400">
+              <p className="text-xs text-white/50">
                 再 -{round1(latestWeight.weightKG - standardWeight)} kg 就標準
               </p>
             )}
           </div>
         </div>
-      </section>
+      </GlassCard>
 
       {/* Calorie deficit */}
-      <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm dark:bg-stone-900">
+      <GlassCard className="mt-4 p-4">
         <h2 className="text-lg font-bold">🔥 熱量赤字（近 14 日）</h2>
         <p className="mt-2 text-2xl font-bold">
           {deficit.total >= 0 ? `−${deficit.total.toLocaleString()}` : `+${(-deficit.total).toLocaleString()}`}{' '}
-          <span className="text-base font-normal text-stone-500 dark:text-stone-400">kcal 累計</span>
+          <span className="text-base font-normal text-white/50">kcal 累計</span>
         </p>
-        <p className="mt-0.5 text-sm text-stone-500 dark:text-stone-400">
+        <p className="mt-0.5 text-sm text-white/50">
           日均 {deficit.avg >= 0 ? `−${deficit.avg}` : `+${-deficit.avg}`} kcal
         </p>
         <p className="mt-2 text-sm leading-relaxed">
@@ -457,10 +458,10 @@ export default function ProgressPage({ profile }: Props) {
               ? `食多咗 ${(-deficit.total).toLocaleString()} kcal，之後嗰 14 日追返佢啦。`
               : '啱啱好打和，繼續保持。'}
         </p>
-        <p className="mt-2 text-xs text-stone-400 dark:text-stone-500">
+        <p className="mt-2 text-xs text-white/40">
           約 7,700 kcal 相當於 1 公斤體脂，此為估算值
         </p>
-      </section>
+      </GlassCard>
     </div>
   )
 }

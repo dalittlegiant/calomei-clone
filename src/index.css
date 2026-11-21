@@ -3,13 +3,40 @@
 /* Class-based dark mode (the app toggles `.dark` on <html>; dark is default). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ---- Warm Obsidian Liquid Glass — design tokens (see DESIGN.md) ---- */
+:root {
+  --obsidian-bg-1: #0a0a0c;
+  --obsidian-bg-2: #141210;
+  --obsidian-amber: #ff9f0a;
+  --obsidian-amber-soft: #ffb340;
+  --obsidian-teal: #14b8a6;
+  --obsidian-teal-soft: #2dd4bf;
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(255, 255, 255, 0.07);
+  --glass-inset-bg: rgba(0, 0, 0, 0.25);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-strong: rgba(255, 255, 255, 0.15);
+  --glass-highlight: rgba(255, 255, 255, 0.14);
+  --glass-highlight-strong: rgba(255, 255, 255, 0.2);
+  --glass-highlight-cta: rgba(255, 255, 255, 0.35);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --glow-amber: rgba(255, 159, 10, 0.1);
+  --glow-teal: rgba(20, 184, 166, 0.08);
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background-color: #fff8f0;
-  color: #1c1917;
+  /* Warm Obsidian identity: deep warm charcoal gradient.
+     The gradient + ambient glows live on fixed layers in App.tsx (iOS
+     Safari does not handle background-attachment: fixed reliably); body
+     just carries the base colour so there is never a white flash. */
+  background-color: var(--obsidian-bg-1);
+  color: var(--text-primary);
   font-family:
     -apple-system, BlinkMacSystemFont, "PingFang HK", "PingFang TC",
     "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif;
@@ -17,8 +44,151 @@ body {
 }
 
 .dark body {
-  background-color: #12100e;
-  color: #f5f5f4;
+  background-color: var(--obsidian-bg-1);
+  color: var(--text-primary);
+}
+
+/* ---- Warm Obsidian Liquid Glass system (see DESIGN.md) ---- */
+
+/* Main frosted-glass card: translucent white on warm charcoal. */
+.glass-card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transform: translateZ(0);
+}
+
+/* Smaller nested card (macro tiles, body tiles, list rows). */
+.glass-subcard {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transform: translateZ(0);
+}
+
+/* Capsule (week strip, header capsules, chips, filter pills). */
+.glass-pill {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transform: translateZ(0);
+}
+
+/* Deeper inset strip inside a card: groups data by layering, not outlines. */
+.glass-inset {
+  background: var(--glass-inset-bg);
+  border-radius: 1rem;
+}
+
+/* Roast zone on top of a food card: translucent amber-tinted glass. */
+.glass-roast {
+  background: rgba(245, 158, 11, 0.16);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Floating navigation / pill: stronger glass + top highlight edge. */
+.glass-nav {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight-strong);
+  transform: translateZ(0);
+}
+
+/* Bottom sheet panel (AddSheet): same glass, top-rounded only. */
+.glass-sheet {
+  background: rgba(23, 19, 15, 0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-bottom: none;
+  border-radius: 1.5rem 1.5rem 0 0;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transform: translateZ(0);
+}
+
+/* Tinted glass CTA — amber (core accent). */
+.glass-cta-amber {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 179, 64, 0.94),
+    rgba(255, 159, 10, 0.9)
+  );
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight-cta),
+    0 8px 24px rgba(255, 159, 10, 0.35);
+  transform: translateZ(0);
+}
+
+/* Tinted glass CTA — teal (exercise / water accent). */
+.glass-cta-teal {
+  background: linear-gradient(
+    180deg,
+    rgba(45, 212, 191, 0.94),
+    rgba(20, 184, 166, 0.9)
+  );
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight-cta),
+    0 8px 24px rgba(20, 184, 166, 0.3);
+  transform: translateZ(0);
+}
+
+/* Glass text input / select / textarea. */
+.glass-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+.glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+.glass-input:focus {
+  border-color: var(--obsidian-amber);
+}
+.glass-input:disabled {
+  opacity: 0.4;
+}
+select.glass-input {
+  color-scheme: dark;
+}
+select.glass-input option {
+  color: #111;
+}
+
+/* iOS-style pagination dots (carousel) — warm amber. */
+.page-dot {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  transition: all 0.3s ease;
+}
+.page-dot-on {
+  width: 20px;
+  background: var(--obsidian-amber);
+  box-shadow: 0 0 8px rgba(255, 159, 10, 0.6);
+}
+.page-dot-off {
+  width: 6px;
 }
 
 /* Hide the scrollbar on the scorecard carousel (swipe + dots instead). */

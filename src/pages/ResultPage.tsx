@@ -11,6 +11,7 @@ import { MEAL_LABELS } from '../lib/image'
 import { isoDate, openHealthShortcut } from '../lib/health'
 import { correctFood, rebutRoast } from '../lib/vision'
 import { macrosForGrams, searchFoods, type LocalFoodItem } from '../lib/foodDb'
+import { GlassButton } from '../components/ui'
 
 interface Props {
   entryId: string
@@ -110,7 +111,7 @@ export default function ResultPage({
 
   if (!entry) {
     return (
-      <div className="mx-auto w-full max-w-lg px-4 py-10 text-center text-stone-500 dark:text-stone-400">
+      <div className="mx-auto w-full max-w-lg px-4 py-10 text-center text-white/50">
         載入緊…
       </div>
     )
@@ -363,7 +364,7 @@ export default function ResultPage({
       <button
         type="button"
         onClick={onBack}
-        className="mt-4 font-bold text-amber-700 dark:text-amber-300"
+        className="mt-4 font-bold text-[#FF9F0A]"
       >
         ← 返回記錄
       </button>
@@ -377,13 +378,13 @@ export default function ResultPage({
       )}
 
       {loadedEntry.roastComment && (
-        <div className="mt-4 rounded-3xl bg-amber-100 dark:bg-amber-900 p-4">
-          <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+        <div className="mt-4 rounded-3xl border border-[#FF9F0A]/25 bg-[#FF9F0A]/15 p-4">
+          <p className="text-sm font-bold text-amber-200">
             {loadedEntry.roastEmoji ?? '💬'} {MEAL_LABELS[loadedEntry.mealType as keyof typeof MEAL_LABELS] ?? loadedEntry.mealType} · {dateStr}
           </p>
           <p className="mt-1 leading-relaxed">{loadedEntry.roastComment}</p>
           {roastHistory.length > 0 && (
-            <details className="mt-2 text-sm text-amber-800/70">
+            <details className="mt-2 text-sm text-amber-200/70">
               <summary className="cursor-pointer font-bold">
                 之前嘅評語（{roastHistory.length}）
               </summary>
@@ -397,17 +398,17 @@ export default function ResultPage({
         </div>
       )}
 
-      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
+      <div className="mt-4 glass-card p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-bold">呢餐有咩</h2>
-          <span className="text-sm text-stone-500 dark:text-stone-400">
-            合計 <b className="text-lg text-stone-800 dark:text-stone-100">{totals.calories}</b> kcal
+          <span className="text-sm text-white/50">
+            合計 <b className="text-lg text-white">{totals.calories}</b> kcal
           </span>
         </div>
-        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+        <p className="mt-1 text-sm text-white/50">
           蛋白質 {totals.proteinG}g · 碳水 {totals.carbsG}g · 脂肪 {totals.fatG}g
         </p>
-        <p className="mt-0.5 text-sm text-stone-500 dark:text-stone-400">
+        <p className="mt-0.5 text-sm text-white/50">
           糖 {totals.sugarG}g · 纖維 {totals.fiberG}g · 鈉 {totals.sodiumMg}mg
         </p>
 
@@ -417,8 +418,8 @@ export default function ResultPage({
               key={i}
               className={`rounded-2xl border p-3 ${
                 item.isExcluded
-                  ? 'border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 opacity-50'
-                  : 'border-amber-200 bg-amber-50/50'
+                  ? 'border-white/15 bg-white/[0.04] opacity-50'
+                  : 'border-[#FF9F0A]/40 bg-[#FF9F0A]/10'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -428,19 +429,19 @@ export default function ResultPage({
                   onChange={(e) =>
                     updateItem(i, { isExcluded: !e.target.checked })
                   }
-                  className="h-5 w-5 accent-amber-500"
+                  className="h-5 w-5 accent-[#FF9F0A]"
                   aria-label="計入呢樣"
                 />
                 <input
                   type="text"
                   value={item.nameZH}
                   onChange={(e) => updateItem(i, { nameZH: e.target.value })}
-                  className="min-w-0 flex-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 font-bold outline-none focus:border-amber-400"
+                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 font-bold outline-none focus:border-[#FF9F0A]"
                 />
                 <button
                   type="button"
                   onClick={() => removeItem(i)}
-                  className="rounded-lg px-2 py-1 text-red-500 active:bg-red-50"
+                  className="rounded-lg px-2 py-1 text-red-400"
                   aria-label="刪除呢樣"
                 >
                   ✕
@@ -448,18 +449,18 @@ export default function ResultPage({
               </div>
               <div className="mt-2 grid grid-cols-4 gap-2 text-sm">
                 <label className="col-span-2">
-                  <span className="text-xs text-stone-500 dark:text-stone-400">份量</span>
+                  <span className="text-xs text-white/50">份量</span>
                   <input
                     type="text"
                     value={item.portionDescription}
                     onChange={(e) =>
                       updateItem(i, { portionDescription: e.target.value })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">卡路里</span>
+                  <span className="text-xs text-white/50">卡路里</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -469,11 +470,11 @@ export default function ResultPage({
                         calories: Number(e.target.value) || 0,
                       })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">蛋白質 g</span>
+                  <span className="text-xs text-white/50">蛋白質 g</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -482,11 +483,11 @@ export default function ResultPage({
                     onChange={(e) =>
                       updateItem(i, { proteinG: Number(e.target.value) || 0 })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">碳水 g</span>
+                  <span className="text-xs text-white/50">碳水 g</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -495,11 +496,11 @@ export default function ResultPage({
                     onChange={(e) =>
                       updateItem(i, { carbsG: Number(e.target.value) || 0 })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">脂肪 g</span>
+                  <span className="text-xs text-white/50">脂肪 g</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -508,11 +509,11 @@ export default function ResultPage({
                     onChange={(e) =>
                       updateItem(i, { fatG: Number(e.target.value) || 0 })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">糖 g</span>
+                  <span className="text-xs text-white/50">糖 g</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -521,11 +522,11 @@ export default function ResultPage({
                     onChange={(e) =>
                       updateItem(i, { sugarG: Number(e.target.value) || 0 })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">纖維 g</span>
+                  <span className="text-xs text-white/50">纖維 g</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -534,11 +535,11 @@ export default function ResultPage({
                     onChange={(e) =>
                       updateItem(i, { fiberG: Number(e.target.value) || 0 })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
                 <label>
-                  <span className="text-xs text-stone-500 dark:text-stone-400">鈉 mg</span>
+                  <span className="text-xs text-white/50">鈉 mg</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -546,10 +547,10 @@ export default function ResultPage({
                     onChange={(e) =>
                       updateItem(i, { sodiumMg: Number(e.target.value) || 0 })
                     }
-                    className="mt-0.5 w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 outline-none focus:border-amber-400"
+                    className="mt-0.5 w-full rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1 outline-none focus:border-[#FF9F0A]"
                   />
                 </label>
-                <span className="self-end text-xs text-stone-400 dark:text-stone-500">
+                <span className="self-end text-xs text-white/40">
                   可信度 {Math.round(item.confidence * 100)}%
                 </span>
               </div>
@@ -557,23 +558,23 @@ export default function ResultPage({
           ))}
         </div>
 
-        <button
-          type="button"
+        <GlassButton
+          variant="amber"
           onClick={onSave}
-          className="mt-4 w-full rounded-2xl bg-amber-500 py-3 font-bold text-white active:bg-amber-600"
+          className="mt-4 w-full rounded-2xl py-3"
         >
           💾 儲存呢餐
-        </button>
+        </GlassButton>
 
         <button
           type="button"
           onClick={onSaveFavorite}
-          className="mt-2 w-full rounded-2xl bg-white dark:bg-stone-900 py-3 font-bold text-amber-700 dark:text-amber-300 ring-1 ring-amber-300 active:bg-amber-50"
+          className="mt-2 w-full rounded-2xl glass-subcard py-3 font-bold text-[#FF9F0A] ring-1 ring-[#FF9F0A]/40"
         >
           ⭐ 收藏呢餐
         </button>
         {savedMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 dark:bg-green-950 px-3 py-2 text-center text-sm text-green-700 dark:text-green-300">
+          <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
             {savedMsg}
           </p>
         )}
@@ -581,24 +582,24 @@ export default function ResultPage({
         <button
           type="button"
           onClick={onExportHealth}
-          className="mt-2 w-full rounded-2xl bg-white dark:bg-stone-900 py-3 font-bold text-red-500 ring-1 ring-red-200 active:bg-red-50"
+          className="mt-2 w-full rounded-2xl glass-subcard py-3 font-bold text-red-400 ring-1 ring-red-500/40"
         >
           🍎 同步呢餐去 Apple Health
         </button>
         {healthMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 dark:bg-green-950 px-3 py-2 text-center text-sm text-green-700 dark:text-green-300">
+          <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
             {healthMsg}
           </p>
         )}
-        <p className="mt-2 text-center text-xs text-stone-400 dark:text-stone-500">
+        <p className="mt-2 text-center text-xs text-white/40">
           經 iOS 捷徑寫入 Apple Health（只適用於 iOS；捷徑名喺「設定」改）
         </p>
       </div>
 
       {(loadedEntry.rebuttable ?? true) && loadedEntry.roastComment && (
-        <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
+        <div className="mt-4 glass-card p-4">
           <h3 className="font-bold">😤 唔服？駁佢</h3>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          <p className="mt-1 text-sm text-white/50">
             寫低你嘅反駁，AI 會用同一語氣回嘴一句。舊評語會留低，之後掃描唔會重複講。
           </p>
           <div className="mt-2 flex gap-2">
@@ -607,28 +608,28 @@ export default function ResultPage({
               value={rebuttal}
               onChange={(e) => setRebuttal(e.target.value)}
               placeholder="例如：呢碟根本唔油，你睇錯啦"
-              className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+              className="min-w-0 flex-1 glass-input"
             />
             <button
               type="button"
               disabled={rebutting || !rebuttal.trim()}
               onClick={onRebut}
-              className="rounded-xl bg-stone-800 px-4 py-2 font-bold text-white disabled:opacity-40"
+              className="rounded-xl bg-white/10 px-4 py-2 font-bold text-white disabled:opacity-40"
             >
               {rebutting ? '駁緊…' : '駁佢'}
             </button>
           </div>
           {rebutError && (
-            <p className="mt-2 rounded-xl bg-red-50 dark:bg-red-950 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+            <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
               {rebutError}
             </p>
           )}
         </div>
       )}
 
-      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
+      <div className="mt-4 glass-card p-4">
         <h3 className="font-bold">AI 認錯咗？糾正佢</h3>
-        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+        <p className="mt-1 text-sm text-white/50">
           輸入正確食物名（逗號分隔），AI 會用同一張相重新分析。
         </p>
         <div className="mt-2 flex gap-2">
@@ -637,36 +638,36 @@ export default function ResultPage({
             value={correctTitles}
             onChange={(e) => setCorrectTitles(e.target.value)}
             placeholder="例如：叉燒飯，凍檸茶"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 glass-input"
           />
           <button
             type="button"
             disabled={correcting || !correctTitles.trim()}
             onClick={onCorrect}
-            className="rounded-xl bg-stone-800 px-4 py-2 font-bold text-white disabled:opacity-40"
+            className="rounded-xl bg-white/10 px-4 py-2 font-bold text-white disabled:opacity-40"
           >
             {correcting ? '糾正緊…' : '糾正'}
           </button>
         </div>
         {correctError && (
-          <p className="mt-2 rounded-xl bg-red-50 dark:bg-red-950 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+          <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
             {correctError}
           </p>
         )}
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
+      <div className="mt-4 glass-card p-4">
         <h3 className="font-bold">＋ 手動加食物（離線食物庫）</h3>
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="搜尋食物，例如：鯖魚、米飯…"
-          className="mt-2 w-full rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+          className="mt-2 glass-input"
         />
-        {searching && <p className="mt-2 text-sm text-stone-400 dark:text-stone-500">搵緊…</p>}
+        {searching && <p className="mt-2 text-sm text-white/40">搵緊…</p>}
         {searchResults.length > 0 && (
-          <ul className="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+          <ul className="mt-2 divide-y divide-white/10">
             {searchResults.map((food) => (
               <li
                 key={food.id}
@@ -675,18 +676,18 @@ export default function ResultPage({
                 <div className="min-w-0">
                   <p className="truncate font-bold">
                     {food.name}{' '}
-                    <span className="font-normal text-stone-400 dark:text-stone-500">
+                    <span className="font-normal text-white/40">
                       {food.nameEN ?? ''}
                     </span>
                   </p>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                  <p className="text-xs text-white/50">
                     {food.category} · 每100克 {food.caloriesPerHundredG} kcal
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => addLocalFood(food, 100)}
-                  className="shrink-0 rounded-xl bg-amber-100 dark:bg-amber-900 px-3 py-1.5 text-sm font-bold text-amber-800 dark:text-amber-200 active:bg-amber-200"
+                  className="shrink-0 rounded-xl bg-[#FF9F0A]/15 px-3 py-1.5 text-sm font-bold text-amber-200"
                 >
                   ＋100克
                 </button>
@@ -702,7 +703,7 @@ export default function ResultPage({
         className={`mt-4 w-full rounded-2xl py-3 font-bold ${
           confirmDelete
             ? 'bg-red-600 text-white'
-            : 'bg-white dark:bg-stone-900 text-red-600 ring-1 ring-red-200'
+            : 'bg-white/[0.06] text-red-400 ring-1 ring-red-500/40'
         }`}
       >
         {confirmDelete ? '再撳一次確認刪除' : '刪除呢餐'}

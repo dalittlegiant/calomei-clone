@@ -9,6 +9,7 @@ import {
 } from '../lib/image'
 import { scanFood, scanNutritionLabel } from '../lib/vision'
 import { getToneInfo } from '../config/prompts'
+import { GlassButton } from '../components/ui'
 
 type ScanMode = 'food' | 'label' | 'text'
 
@@ -183,7 +184,7 @@ export default function ScanPage({
       <button
         type="button"
         onClick={onBack}
-        className="mt-4 font-bold text-amber-700 dark:text-amber-300 dark:text-amber-400"
+        className="mt-4 font-bold text-[#FF9F0A]"
       >
         ← 返回
       </button>
@@ -204,20 +205,20 @@ export default function ScanPage({
       />
 
       {mode === 'text' ? (
-        <div className="mt-6 rounded-3xl border-2 border-dashed border-amber-300 bg-white dark:bg-stone-900 p-8 text-center">
+        <div className="mt-6 rounded-3xl border-2 border-dashed border-[#FF9F0A]/40 bg-white/[0.04] p-8 text-center backdrop-blur-xl">
           <div className="text-5xl">⌨️</div>
           <p className="mt-3 text-lg font-bold">打字認罪</p>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          <p className="mt-1 text-sm text-white/50">
             冇相都得 — 打低你食咗咩，AI 會照文字估卡路里
           </p>
         </div>
       ) : !preview ? (
-        <div className="mt-6 rounded-3xl border-2 border-dashed border-amber-300 bg-white dark:bg-stone-900 p-8 text-center">
+        <div className="mt-6 rounded-3xl border-2 border-dashed border-[#FF9F0A]/40 bg-white/[0.04] p-8 text-center backdrop-blur-xl">
           <div className="text-5xl">{mode === 'label' ? '🏷️' : '📸'}</div>
           <p className="mt-3 text-lg font-bold">
             {mode === 'label' ? '影低營養標籤' : '影低你食緊咩'}
           </p>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          <p className="mt-1 text-sm text-white/50">
             {mode === 'label'
               ? '影包裝背面個營養表，AI 會直接讀數字填好'
               : `AI 會認出食物、計卡路里，再用${tone.label}語氣講句嘢`}
@@ -226,14 +227,14 @@ export default function ScanPage({
             <button
               type="button"
               onClick={() => cameraRef.current?.click()}
-              className="flex-1 rounded-2xl bg-amber-500 py-3 font-bold text-white active:bg-amber-600"
+              className="flex-1 rounded-2xl glass-cta-amber py-3 font-bold text-white"
             >
               📷 影相
             </button>
             <button
               type="button"
               onClick={() => galleryRef.current?.click()}
-              className="flex-1 rounded-2xl bg-white py-3 font-bold text-amber-700 ring-1 ring-amber-300 active:bg-amber-50 dark:bg-stone-900 dark:text-amber-300 dark:ring-amber-700"
+              className="flex-1 rounded-2xl glass-subcard py-3 font-bold text-[#FF9F0A] ring-1 ring-[#FF9F0A]/40"
             >
               🖼️ 揀相
             </button>
@@ -253,7 +254,7 @@ export default function ScanPage({
               setPreview(null)
               setError(null)
             }}
-            className="mt-2 w-full rounded-xl py-2 text-sm font-bold text-stone-500 dark:text-stone-400 active:bg-stone-100"
+            className="mt-2 w-full rounded-xl py-2 text-sm font-bold text-white/50"
           >
             換過張相
           </button>
@@ -274,18 +275,18 @@ export default function ScanPage({
             onClick={() => setMode(m.id)}
             className={`rounded-2xl border-2 p-3 text-left ${
               mode === m.id
-                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950'
-                : 'border-stone-200 bg-white dark:border-stone-700 dark:bg-stone-900'
+                ? 'border-[#FF9F0A] bg-[#FF9F0A]/15'
+                : 'border-white/15 glass-subcard'
             }`}
           >
             <span className="block font-bold">{m.label}</span>
-            <span className="block text-xs text-stone-500 dark:text-stone-400">{m.hint}</span>
+            <span className="block text-xs text-white/50">{m.hint}</span>
           </button>
         ))}
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
-        <label className="text-sm font-bold text-stone-600 dark:text-stone-300">邊餐？</label>
+      <div className="mt-4 glass-card p-4">
+        <label className="text-sm font-bold text-white/60">邊餐？</label>
         <div className="mt-2 grid grid-cols-3 gap-2">
           {(Object.keys(MEAL_LABELS) as MealType[]).map((m) => (
             <button
@@ -294,8 +295,8 @@ export default function ScanPage({
               onClick={() => setMealType(m)}
               className={`rounded-xl py-2 font-bold ${
                 mealType === m
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                  ? 'glass-cta-amber text-white'
+                  : 'bg-white/[0.06] text-white/60'
               }`}
             >
               {MEAL_LABELS[m]}
@@ -303,7 +304,7 @@ export default function ScanPage({
           ))}
         </div>
 
-        <label className="mt-4 block text-sm font-bold text-stone-600 dark:text-stone-300">
+        <label className="mt-4 block text-sm font-bold text-white/60">
           {mode === 'text' ? '食咗咩？' : '補充（可選）'}
         </label>
         <input
@@ -317,24 +318,24 @@ export default function ScanPage({
                 ? '例如：叉燒飯一碟，加凍檸茶'
                 : '例如：食咗一半、走甜、加飯…'
           }
-          className="mt-1 w-full rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
+          className="mt-1 glass-input"
         />
 
-        <div className="mt-3 flex items-center justify-between text-sm text-stone-500 dark:text-stone-400">
+        <div className="mt-3 flex items-center justify-between text-sm text-white/50">
           <span>
             語氣：{tone.emoji} {tone.label}
           </span>
           <span>地區：香港</span>
         </div>
 
-        <button
-          type="button"
+        <GlassButton
+          variant="amber"
           disabled={
             scanning ||
             (mode === 'text' ? !description.trim() : !file)
           }
           onClick={onScan}
-          className="mt-4 w-full rounded-2xl bg-amber-500 py-3 text-lg font-bold text-white disabled:opacity-40 active:bg-amber-600"
+          className="mt-4 w-full rounded-2xl py-3 text-lg"
         >
           {scanning
             ? '分析緊…請稍候'
@@ -343,15 +344,15 @@ export default function ScanPage({
               : mode === 'text'
                 ? '🔍 用文字估算'
                 : '🔍 分析呢餐'}
-        </button>
+        </GlassButton>
 
         {error && (
-          <p className="mt-3 rounded-xl bg-red-50 dark:bg-red-950 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+          <p className="mt-3 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
             {error}
           </p>
         )}
         {mode !== 'text' && (
-          <p className="mt-3 text-center text-xs text-stone-400 dark:text-stone-500">
+          <p className="mt-3 text-center text-xs text-white/40">
             相片會壓縮到最長邊 1024px、JPEG 70% 先上傳
           </p>
         )}
