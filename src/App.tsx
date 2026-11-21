@@ -26,6 +26,7 @@ import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
 import HomePage from './pages/HomePage'
 import ProgressPage from './pages/ProgressPage'
+import DeficitDetailPage from './pages/DeficitDetailPage'
 import AddSheet, { type SheetView } from './pages/AddSheet'
 
 type Tab = 'home' | 'records' | 'progress' | 'settings'
@@ -39,6 +40,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home')
   const [currentEntryId, setCurrentEntryId] = useState<string | null>(null)
   const [scanFlow, setScanFlow] = useState<ScanFlow | null>(null)
+  const [deficitOpen, setDeficitOpen] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [vision, setVision] = useState<VisionProviderConfig>(
     DEFAULT_VISION_CONFIG,
@@ -99,12 +101,14 @@ export default function App() {
   function goTab(t: Tab) {
     setCurrentEntryId(null)
     setScanFlow(null)
+    setDeficitOpen(false)
     setTab(t)
   }
 
   function goBack() {
     setCurrentEntryId(null)
     setScanFlow(null)
+    setDeficitOpen(false)
   }
 
   async function changeTone(toneId: string) {
@@ -126,7 +130,7 @@ export default function App() {
   }
 
   const tone = getToneInfo(profile.toneMode)
-  const inDetail = !!currentEntryId || !!scanFlow
+  const inDetail = !!currentEntryId || !!scanFlow || deficitOpen
   const homeActive = tab === 'home' && !inDetail
   const recordsActive = tab === 'records' || !!currentEntryId
 
@@ -257,7 +261,17 @@ export default function App() {
             ) : tab === 'records' ? (
               <HistoryPage profile={profile} onOpen={setCurrentEntryId} />
             ) : tab === 'progress' ? (
-              <ProgressPage profile={profile} />
+              deficitOpen ? (
+                <DeficitDetailPage
+                  profile={profile}
+                  onBack={() => setDeficitOpen(false)}
+                />
+              ) : (
+                <ProgressPage
+                  profile={profile}
+                  onOpenDeficit={() => setDeficitOpen(true)}
+                />
+              )
             ) : (
               <SettingsPage
                 profile={profile}

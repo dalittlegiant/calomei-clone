@@ -1,15 +1,18 @@
 // Progress — 進度頁，照原 app
 // - 30 日營養圖：7 種營養切換，上限虛線，超標紅柱
 // - 身體卡：體重 / 體脂 / 肌肉率 / 內臟脂肪 / BMI（趨勢 + 撳 + 直接記錄）
-// - 熱量赤字（近 14 日）：累計 + 日均 + 7,700 kcal ≈ 1 公斤體脂
+// - 熱量赤字（近 14 日）：只計有記食物嘅日子，淨 = 食咗 − (TDEE + 運動消耗)；
+//   累計 + 日均 + 相當體脂（累計 ÷ 7700）；撳卡入詳細頁（見 deficit.ts，DESIGN.md §10）
 
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type UserProfile } from '../lib/db'
 import {
+  activityFactor,
   bmi,
   bmiLabel,
   effectiveTarget,
+  mifflinBmr,
   type NutritionTarget,
 } from '../lib/nutrition'
 import {
@@ -19,9 +22,15 @@ import {
   todayLogStartMs,
 } from '../lib/day'
 import { GlassCard } from '../components/ui'
+import {
+  computeDeficit,
+  deficitComment,
+  fmtSigned,
+} from './deficit'
 
 interface Props {
   profile: UserProfile
+  onOpenDeficit: () => void
 }
 
 type NutrientKey =
@@ -57,7 +66,7 @@ function fmtDate(ms: number): string {
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
-export default function ProgressPage({ profile }: Props) {
+export default function ProgressPage({ profile, onOpenDeficit }: Props) {
   const [dayStart, setDayStart] = useState('00:00')
   const [nutrient, setNutrient] = useState<NutrientKey>('calories')
   const [offset, setOffset] = useState(0) // 0 = 最近 30 日，-30 = 再早 30 日
@@ -147,21 +156,26 @@ export default function ProgressPage({ profile }: Props) {
     }))
   }, [weights])
 
-  // ---- deficit, last 14 log days ----
+  // ---- deficit, last 14 log days (DESIGN.md §10) ----
+  // 只計有記食物嘅日子；單日淨 = 食咗 − (TDEE + 當日運動消耗)。
+  const tdee = Math.round(
+    mifflinBmr(profile) * activityFactor(profile.activityLevel),
+  )
   const deficit = useMemo(() => {
-    let sum = 0
     const todayStart = todayLogStartMs(startMin)
-    for (let i = 0; i < 14; i++) {
-      const startMs = todayStart - i * 86_400_000
-      const key = logDayKey(startMs, startMin)
-      const eaten = dayTotals.get(key)?.calories ?? 0
-      const burned = (exercise ?? [])
-        .filter((e) => logDayKey(e.date, startMin) === key)
-        .reduce((a, e) => a + e.caloriesBurned, 0)
-      sum += target.calories - eaten + burned
-    }
-    return { total: Math.round(sum), avg: Math.round(sum / 14) }
-  }, [dayTotals, exercise, startMin, target.calories])
+    return computeDeficit(
+      entries ?? [],
+      exercise ?? [],
+      tdee,
+      startMin,
+      todayStart,
+      14,
+    )
+  }, [entries, exercise, tdee, startMin])
+  const deficitMaxAbs = Math.max(
+    ...deficit.allDays.map((d) => Math.abs(d.net)),
+    1,
+  )
 
   async function saveBody() {
     const kg = Number(weightKg)
@@ -271,7 +285,7 @@ export default function ProgressPage({ profile }: Props) {
             type="button"
             disabled={offset >= 0}
             onClick={() => setOffset((o) => Math.min(0, o + 30))}
-            className="rounded-xl bg-stone-100 px-3 py-1.5 text-sm font-bold text-stone-600 disabled:opacity-40"
+            className="rounded-xl bg-white/[0.06] px-3 py-1.5 text-sm font-bold text-white/60 disabled:opacity-40"
           >
             遲 30 日 →
           </button>
@@ -441,27 +455,76 @@ export default function ProgressPage({ profile }: Props) {
         </div>
       </GlassCard>
 
-      {/* Calorie deficit */}
-      <GlassCard className="mt-4 p-4">
-        <h2 className="text-lg font-bold">🔥 熱量赤字（近 14 日）</h2>
-        <p className="mt-2 text-2xl font-bold">
-          {deficit.total >= 0 ? `−${deficit.total.toLocaleString()}` : `+${(-deficit.total).toLocaleString()}`}{' '}
-          <span className="text-base font-normal text-white/50">kcal 累計</span>
-        </p>
-        <p className="mt-0.5 text-sm text-white/50">
-          日均 {deficit.avg >= 0 ? `−${deficit.avg}` : `+${-deficit.avg}`} kcal
-        </p>
+      {/* Calorie deficit — tap the whole card to open the detail page. */}
+      <button
+        type="button"
+        onClick={onOpenDeficit}
+        className="glass-card mt-4 block w-full p-4 text-left"
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-lg font-bold">🔥 熱量赤字</h2>
+          <span className="flex items-center gap-1 text-sm whitespace-nowrap text-white/50">
+            近 14 日
+            <span className="text-xl leading-none text-white/40">›</span>
+          </span>
+        </div>
+        <div className="mt-2 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            {deficit.daysWithFood === 0 ? (
+              <p className="text-2xl font-bold text-white/60">未有記錄</p>
+            ) : (
+              <>
+                <p
+                  className={`text-2xl font-bold whitespace-nowrap ${
+                    deficit.total < 0
+                      ? 'text-[#14B8A6]'
+                      : deficit.total > 0
+                        ? 'text-[#FF9F0A]'
+                        : 'text-white'
+                  }`}
+                >
+                  {fmtSigned(deficit.total)}{' '}
+                  <span className="text-base font-normal text-white/50">
+                    kcal 累計
+                  </span>
+                </p>
+                <p className="mt-0.5 text-sm whitespace-nowrap text-white/50">
+                  日均 {fmtSigned(deficit.avg)} kcal
+                </p>
+              </>
+            )}
+          </div>
+          {/* Mini bar preview — last 14 days; only days with food draw a bar. */}
+          <div
+            className="flex h-10 shrink-0 items-end gap-[2px]"
+            aria-hidden
+          >
+            {deficit.allDays.map((d) => (
+              <span
+                key={d.key}
+                className={`w-[3px] rounded-full ${
+                  d.hasFood
+                    ? d.net < 0
+                      ? 'bg-[#14B8A6]'
+                      : 'bg-[#FF9F0A]'
+                    : 'bg-white/10'
+                }`}
+                style={{
+                  height: d.hasFood
+                    ? `${Math.max(10, (Math.abs(d.net) / deficitMaxAbs) * 100)}%`
+                    : '10%',
+                }}
+              />
+            ))}
+          </div>
+        </div>
         <p className="mt-2 text-sm leading-relaxed">
-          {deficit.total > 0
-            ? `慳咗 ${deficit.total.toLocaleString()} kcal，連${deficit.total >= 7700 ? '一碗叉燒飯都夠買' : '半碗叉燒飯都未夠'}，咁都叫忍？`
-            : deficit.total < 0
-              ? `食多咗 ${(-deficit.total).toLocaleString()} kcal，之後嗰 14 日追返佢啦。`
-              : '啱啱好打和，繼續保持。'}
+          {deficitComment(deficit.total, deficit.daysWithFood)}
         </p>
         <p className="mt-2 text-xs text-white/40">
           約 7,700 kcal 相當於 1 公斤體脂，此為估算值
         </p>
-      </GlassCard>
+      </button>
     </div>
   )
 }

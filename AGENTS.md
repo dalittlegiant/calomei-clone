@@ -27,11 +27,19 @@
 - 純 CSS 實現玻璃，**嚴禁 SVG `feDisplacementMap`**（iOS Safari 唔支援）。
 - 單一深色身份：淺色主題已退役，唔准加返主題切換。
 
+## 熱量赤字（唔准改返錯）
+
+- 赤字計算唯一真相來源係 `src/pages/deficit.ts`：只計有記食物嘅日子、用
+  TDEE（唔係每日目標卡路里）做基準。唔准改返「無記數當食 0」或者「用目標
+  卡路里計」嗰套舊算法。詳見 DESIGN.md §10。
+
 ## 驗收（改完先交，唔准直接 push）
 
 1. `npm run build` 零錯誤（TypeScript＋打包）。
 2. 喺 `/calomei-clone/` 子路徑下真實渲染驗收，唔係淨睇 HTTP 200——
    HTTP 200 唔等於 render 到（2026-11-21 黑屏教訓：未索引嘅 Dexie `orderBy`
    會令成個 app 黑屏；所有 `orderBy`／`where` 必須用已索引嘅欄位）。
+   **截圖前一定要 double-reload 先攞到新 bundle**——個 tab 會繼續行舊 JS，
+   截出嚟嘅圖 file hash 同上一張一模一樣即係舊版，未更新。
 3. `git diff --stat` 確認 `src/lib/` 同 `src/config/prompts.ts` 無被改動。
 4. 部署要經 Kong 俾嘅一次性 GitHub PAT（push 完即刻移除 remote，佢 revoke）。
