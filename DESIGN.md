@@ -221,3 +221,54 @@
   base 同 multiplier 同步郁。食材窗改完：顯示值除返 multiplier 寫入 base。
 - 克數由 `portionDescription` 解析（`parseGrams`：約150克／100g）；解析唔到
   就當無克數——舊記錄照樣用得，唔改 Dexie schema、唔郁 `src/lib/`。
+
+## 12. 動效規範（Motion Spec，2026-11-22 定案）
+
+原則（impeccable animate／polish：動效要克制、有目的，唔係裝飾）：
+- 動畫只係為咗講清楚「嘢由邊度嚟、去邊度、數值點變」——轉場、膠囊滑動、
+  數字滾動、按壓回饋。唔做純裝飾性動畫，唔做長動畫。
+- 只准驅動 GPU 屬性：`transform`、`opacity`、SVG `stroke-dashoffset`。
+  **絕不動畫化 `backdrop-filter`、`width`、`height`、`box-shadow`**（iOS
+  Safari 會窒機）。頁點「變闊」用 `layoutId` 滑動代替 width 動畫。
+- 時長俐落：180–350ms 為主（圓環 400ms 例外）；ease-out（expo）為預設
+  曲線；無 bounce、無 elastic。Sheet 例外：iOS spring 物理。
+- 減少動態唔係可選：`<MotionConfig reducedMotion="user">` 包住根元件
+  （`App.tsx`），系統開咗「減少動態」就自動變即時／淡入。
+
+套件與共用模組（唯一真相來源，唔准逐頁自創時長／曲線）：
+- `motion`（`motion/react`：`MotionConfig`、`AnimatePresence`、`layoutId`、
+  spring）。`src/motion/presets.ts`：`springSheet`（stiffness 380／damping 34，
+  底部 Sheet）、`springPill`（stiffness 500／damping 40，滑動膠囊）、
+  `easeOutExpo`、`DUR`（quick 0.2／slide 0.25／number 0.25／ring 0.4／fill 0.35）。
+- `src/motion/AnimatedNumber.tsx`：數字滾動（animate 250ms ease-out；
+  `fmtInt` 整數、`fmt1dp` 一位小數）。
+
+七大動效（邊度做、點做）：
+- 日期膠囊：主頁 7 日列選中膠囊用 `layoutId="day-pill"` 平滑滑動。
+- 圓環＋數字：火焰圓環＋6 個 MiniRing 用 `motion.circle` 嘅
+  `strokeDashoffset` 過渡 400ms（`initial={false}`，首載唔做假掃入）；
+  仲剩 kcal＋MiniRing 中間數字用 `AnimatedNumber` 滾 250ms。
+- 案底列表：主頁 Feed 用 `key={viewKey}` 嘅 motion.div，切日子淡入＋微移
+  （y: 8 → 0，opacity: 0 → 1，250ms）。
+- 彈窗／Sheet：`GlassModal` 內置 `AnimatePresence`——暗幕淡入淡出 200ms；
+  sheet 由底部用 iOS spring 滑上／滑落；dialog 由 scale 0.96＋y 8 淡入。
+  呼叫端唔使包 `AnimatePresence`，照舊傳 `open` 就得。
+- 頁面進出：`App.tsx` 主內容用 `AnimatePresence mode="popLayout"`＋
+  `key={viewKey}`；Result／Scan／赤字詳細頁 slide＋fade（x: 32 → 0 →
+  -32，250ms），主頁／記錄／進度／設定切頁只淡入淡出。
+- 按壓回縮：共用 `.pressable`（`src/index.css`，transform 150ms，
+  `:active` scale 0.97）——所有玻璃卡片、案底列表項、主按鈕、FAB、導航掣。
+- 導航膠囊：摺埋底部藥丸 `layoutId="nav-pill-bottom"`、展開右欄
+  `layoutId="nav-pill-rail"`——**兩個 nav 同時 mount 緊（一個用 CSS 隱藏），
+  layoutId 一定要分開**，否則會搶同一個 pill。
+- 赤字切換膠囊：每日／累計 `layoutId="deficit-mode-pill"`、
+  14日／30日 `layoutId="deficit-range-pill"`。
+- 飲水填滿：水樽格內填色用 `scaleY` 0 → 1（transform-origin: bottom，
+  350ms）；達標時樽列背後有極克制嘅湖水綠微光（只驅動 opacity）。
+- 2-Slide 頁點：琥珀色頁點用 `layoutId="carousel-dot"` 喺兩點之間滑動。
+- 掃描光束：`ScanPage` 分析緊嗰陣，相片上有一層琥珀色光帶上下流動
+  （`y: -100% → 220%`，mirror 來回，1.6s；純 transform＋opacity）。
+
+日後加新功能：沿用 `presets.ts` 嘅 spring／時長／曲線；新嘅滑動膠囊要
+開新嘅 `layoutId`（全站唯一）；新嘅底部彈窗／對話框一律用 `GlassModal`，
+唔好自寫進出場；新嘅可撳元素加 `.pressable`。

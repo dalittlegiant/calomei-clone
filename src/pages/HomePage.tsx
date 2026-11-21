@@ -10,6 +10,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { motion } from 'motion/react'
+import { DUR, easeOutExpo, springPill } from '../motion/presets'
+import { AnimatedNumber, fmt1dp } from '../motion/AnimatedNumber'
 import { db, type UserProfile } from '../lib/db'
 import {
   activityFactor,
@@ -64,7 +67,7 @@ function MiniRing({
           strokeWidth="6"
           className="stroke-white/10"
         />
-        <circle
+        <motion.circle
           cx="32"
           cy="32"
           r={r}
@@ -73,12 +76,14 @@ function MiniRing({
           strokeWidth="6"
           strokeLinecap="round"
           strokeDasharray={c}
-          strokeDashoffset={c * (1 - frac)}
+          initial={false}
+          animate={{ strokeDashoffset: c * (1 - frac) }}
+          transition={{ duration: DUR.ring, ease: 'easeOut' }}
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center">
         <span className="text-sm leading-none font-bold tabular-nums">
-          {value}
+          <AnimatedNumber value={value} format={fmt1dp} />
         </span>
       </span>
     </div>
@@ -301,26 +306,33 @@ export default function HomePage({
                 onClick={() =>
                   setSelectedDay(isSelected ? null : d.key)
                 }
-                className={`flex min-w-0 flex-1 flex-col items-center rounded-full py-1 transition-colors ${
+                className={`pressable relative flex min-w-0 flex-1 flex-col items-center rounded-full py-1 transition-colors ${
                   isSelected
-                    ? 'glass-cta-amber text-white'
+                    ? 'text-white'
                     : isToday
                       ? 'text-white'
                       : 'text-white/50'
                 }`}
               >
+                {isSelected && (
+                  <motion.span
+                    layoutId="day-pill"
+                    className="absolute inset-0 rounded-full glass-cta-amber"
+                    transition={springPill}
+                  />
+                )}
                 <span
-                  className={`text-[11px] ${
+                  className={`relative text-[11px] ${
                     isSelected ? 'text-white/90' : 'text-white/40'
                   }`}
                 >
                   {d.weekday}
                 </span>
-                <span className="text-base leading-tight font-bold">
+                <span className="relative text-base leading-tight font-bold">
                   {d.date.getDate()}
                 </span>
                 <span
-                  className={`mt-0.5 h-1 w-1 rounded-full ${
+                  className={`relative mt-0.5 h-1 w-1 rounded-full ${
                     hasEntries ? 'bg-white/60' : 'bg-transparent'
                   }`}
                 />
@@ -350,14 +362,14 @@ export default function HomePage({
                     <p className="mt-1 text-3xl font-bold">
                       {remaining >= 0 ? (
                         <>
-                          {remaining}{' '}
+                          <AnimatedNumber value={remaining} />{' '}
                           <span className="text-lg font-normal text-white/60">
                             仲剩
                           </span>
                         </>
                       ) : (
                         <>
-                          {-remaining}{' '}
+                          <AnimatedNumber value={-remaining} />{' '}
                           <span className="text-lg font-normal text-red-400">
                             超咗
                           </span>
@@ -386,7 +398,7 @@ export default function HomePage({
                         strokeWidth="6"
                         className="stroke-white/10"
                       />
-                      <circle
+                      <motion.circle
                         cx="36"
                         cy="36"
                         r="30"
@@ -395,7 +407,9 @@ export default function HomePage({
                         strokeWidth="6"
                         strokeLinecap="round"
                         strokeDasharray={ringC}
-                        strokeDashoffset={ringC * (1 - ringFrac)}
+                        initial={false}
+                        animate={{ strokeDashoffset: ringC * (1 - ringFrac) }}
+                        transition={{ duration: DUR.ring, ease: 'easeOut' }}
                       />
                     </svg>
                     <span className="absolute inset-0 flex items-center justify-center text-[#FF9F0A]">
@@ -438,8 +452,16 @@ export default function HomePage({
                     目標 {targetBottles} 樽 · {WATER_TARGET_ML.toLocaleString()} ml
                   </span>
                 </div>
-                <div className="mt-3 flex items-end justify-between gap-2">
-                  <div className="flex items-end gap-1.5">
+                <div className="relative mt-3 flex items-end justify-between gap-2">
+                  {/* 達標微光 — 只驅動 opacity，極克制 */}
+                  <motion.div
+                    aria-hidden
+                    className="pointer-events-none absolute -inset-2 rounded-3xl bg-[#14B8A6]/15 blur-xl"
+                    initial={false}
+                    animate={{ opacity: bottles >= targetBottles ? 1 : 0 }}
+                    transition={{ duration: 0.5 }}
+                  />
+                  <div className="relative flex items-end gap-1.5">
                     {Array.from({ length: targetBottles }).map((_, i) => (
                       <span
                         key={i}
@@ -450,16 +472,20 @@ export default function HomePage({
                         }`}
                         aria-label={i < bottles ? '已飲一樽' : '未飲'}
                       >
-                        {i < bottles && (
-                          <span className="block h-full w-full bg-white/30" />
-                        )}
+                        <motion.span
+                          className="block h-full w-full bg-white/30"
+                          style={{ transformOrigin: 'bottom' }}
+                          initial={false}
+                          animate={{ scaleY: i < bottles ? 1 : 0 }}
+                          transition={{ duration: DUR.fill, ease: 'easeOut' }}
+                        />
                       </span>
                     ))}
                   </div>
                   <button
                     type="button"
                     onClick={addBottle}
-                    className="glass-cta-teal rounded-full px-4 py-2.5 font-bold whitespace-nowrap text-white"
+                    className="glass-cta-teal pressable relative rounded-full px-4 py-2.5 font-bold whitespace-nowrap text-white"
                   >
                     +1 樽
                   </button>
@@ -500,7 +526,7 @@ export default function HomePage({
             </section>
           </div>
 
-          {/* Dots — 2 pages, warm amber. */}
+          {/* Dots — 2 pages；琥珀色頁點用 layoutId 平滑滑動（唔動 width）。 */}
           <div className="mt-3 flex justify-center gap-1.5">
             {[0, 1].map((p) => (
               <button
@@ -508,8 +534,18 @@ export default function HomePage({
                 type="button"
                 onClick={() => goToPage(p)}
                 aria-label={`第 ${p + 1} 頁`}
-                className={`page-dot ${activePage === p ? 'page-dot-on' : 'page-dot-off'}`}
-              />
+                className="pressable flex h-1.5 w-5 items-center justify-center"
+              >
+                {activePage === p ? (
+                  <motion.span
+                    layoutId="carousel-dot"
+                    className="h-1.5 w-5 rounded-full bg-[#FF9F0A] shadow-[0_0_8px_rgba(255,159,10,0.6)]"
+                    transition={springPill}
+                  />
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+                )}
+              </button>
             ))}
           </div>
 
@@ -518,7 +554,7 @@ export default function HomePage({
             <GlassButton
               variant="amber"
               onClick={onAdd}
-              className="flex flex-1 items-center justify-center gap-2 rounded-full py-3.5 text-base text-white"
+              className="pressable flex flex-1 items-center justify-center gap-2 rounded-full py-3.5 text-base text-white"
             >
               <CameraIcon size={20} />
               又食嘢？加啦
@@ -526,7 +562,7 @@ export default function HomePage({
             <GlassButton
               variant="teal"
               onClick={onAddExercise}
-              className="flex flex-1 items-center justify-center gap-2 rounded-full py-3.5 text-base text-white"
+              className="pressable flex flex-1 items-center justify-center gap-2 rounded-full py-3.5 text-base text-white"
             >
               <ActivityIcon size={20} />
               做咗運動？
@@ -542,20 +578,26 @@ export default function HomePage({
               <button
                 type="button"
                 onClick={() => setSelectedDay(null)}
-                className="text-sm font-bold text-[#FF9F0A]"
+                className="pressable text-sm font-bold text-[#FF9F0A]"
               >
                 睇返全部
               </button>
             )}
           </div>
 
-          {feedGroups.length === 0 && (
-            <p className="glass-inset mt-3 p-6 text-center text-sm text-white/50">
-              仲未有案底 — 撳「又食嘢？加啦」認第一餐啦
-            </p>
-          )}
-
-          {feedGroups.map(([key, list]) => (
+          {/* 案底 feed — 切日子時輕微淡入＋微移（key 跟 viewKey）。 */}
+          <motion.div
+            key={viewKey}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: DUR.slide, ease: easeOutExpo }}
+          >
+            {feedGroups.length === 0 ? (
+              <p className="glass-inset mt-3 p-6 text-center text-sm text-white/50">
+                仲未有案底 — 撳「又食嘢？加啦」認第一餐啦
+              </p>
+            ) : (
+              feedGroups.map(([key, list]) => (
             <div key={key} className="mt-4 md:mt-3">
               <div className="flex items-baseline justify-between px-1">
                 <h3 className="font-bold">{dayLabel(key)}</h3>
@@ -569,7 +611,7 @@ export default function HomePage({
                     key={e.id}
                     type="button"
                     onClick={() => onOpen(e.id)}
-                    className="glass-card block w-full overflow-hidden text-left"
+                    className="glass-card pressable block w-full overflow-hidden text-left"
                   >
                     {e.roastComment && (
                       <span className="glass-roast block px-4 py-2.5 text-sm leading-relaxed text-white/90">
@@ -626,13 +668,15 @@ export default function HomePage({
                 ))}
               </div>
             </div>
-          ))}
+              ))
+            )}
+          </motion.div>
 
           {!selectedDay && (olderCount ?? 0) > 0 && (
             <button
               type="button"
               onClick={() => setFeedDays((d) => d + 30)}
-              className="glass-subcard mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
+              className="glass-subcard pressable mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
             >
               載入更多（仲有 {olderCount} 餐）
             </button>

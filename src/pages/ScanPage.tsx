@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { db, type UserProfile, type VisionProviderConfig } from '../lib/db'
 import {
   compressImage,
@@ -237,14 +238,14 @@ export default function ScanPage({
             <button
               type="button"
               onClick={() => cameraRef.current?.click()}
-              className="flex-1 rounded-2xl glass-cta-amber py-3 font-bold text-white"
+              className="pressable flex-1 rounded-2xl glass-cta-amber py-3 font-bold text-white"
             >
               📷 影相
             </button>
             <button
               type="button"
               onClick={() => galleryRef.current?.click()}
-              className="flex-1 rounded-2xl glass-subcard py-3 font-bold text-[#FF9F0A] ring-1 ring-[#FF9F0A]/40"
+              className="pressable flex-1 rounded-2xl glass-subcard py-3 font-bold text-[#FF9F0A] ring-1 ring-[#FF9F0A]/40"
             >
               🖼️ 揀相
             </button>
@@ -252,11 +253,34 @@ export default function ScanPage({
         </div>
       ) : (
         <div className="mt-6">
-          <img
-            src={preview}
-            alt="食物相片"
-            className="w-full rounded-3xl object-cover"
-          />
+          <div className="relative overflow-hidden rounded-3xl">
+            <img
+              src={preview}
+              alt="食物相片"
+              className="w-full rounded-3xl object-cover"
+            />
+            {/* 掃描光束 — 分析緊嗰陣喺相片上上下流動；純 transform＋opacity。 */}
+            <AnimatePresence>
+              {scanning && (
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 h-[45%] bg-[linear-gradient(180deg,transparent,rgba(255,159,10,0.12)_35%,rgba(255,159,10,0.45)_50%,rgba(255,159,10,0.12)_65%,transparent)]"
+                  initial={{ y: '-100%', opacity: 0 }}
+                  animate={{ y: '220%', opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{
+                    y: {
+                      duration: 1.6,
+                      repeat: Infinity,
+                      repeatType: 'mirror',
+                      ease: 'easeInOut',
+                    },
+                    opacity: { duration: 0.2 },
+                  }}
+                />
+              )}
+            </AnimatePresence>
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -264,7 +288,7 @@ export default function ScanPage({
               setPreview(null)
               setError(null)
             }}
-            className="mt-2 w-full rounded-xl py-2 text-sm font-bold text-white/50"
+            className="pressable mt-2 w-full rounded-xl py-2 text-sm font-bold text-white/50"
           >
             換過張相
           </button>
@@ -283,7 +307,7 @@ export default function ScanPage({
             key={m.id}
             type="button"
             onClick={() => setMode(m.id)}
-            className={`rounded-2xl border-2 p-3 text-left ${
+            className={`pressable rounded-2xl border-2 p-3 text-left ${
               mode === m.id
                 ? 'border-[#FF9F0A] bg-[#FF9F0A]/15'
                 : 'border-white/15 glass-subcard'
@@ -303,7 +327,7 @@ export default function ScanPage({
               key={m}
               type="button"
               onClick={() => setMealType(m)}
-              className={`rounded-xl py-2 font-bold ${
+              className={`pressable rounded-xl py-2 font-bold ${
                 mealType === m
                   ? 'glass-cta-amber text-white'
                   : 'bg-white/[0.06] text-white/60'
@@ -345,7 +369,7 @@ export default function ScanPage({
             (mode === 'text' ? !description.trim() : !file)
           }
           onClick={onScan}
-          className="mt-4 w-full rounded-2xl py-3 text-lg"
+          className="pressable mt-4 w-full rounded-2xl py-3 text-lg"
         >
           {scanning
             ? '分析緊…請稍候'

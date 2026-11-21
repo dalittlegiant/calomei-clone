@@ -253,7 +253,7 @@ export default function AddSheet({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-white/[0.06] px-3 py-1 font-bold text-white/60"
+            className="pressable rounded-full bg-white/[0.06] px-3 py-1 font-bold text-white/60"
             aria-label="關閉"
           >
             ✕
@@ -264,7 +264,7 @@ export default function AddSheet({
           <button
             type="button"
             onClick={() => setView('menu')}
-            className="mt-2 font-bold text-[#FF9F0A]"
+            className="pressable mt-2 font-bold text-[#FF9F0A]"
           >
             ← 返回
           </button>
@@ -291,7 +291,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => cameraRef.current?.click()}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">📸</span>
                 <span className="mt-1 block font-bold">影相</span>
@@ -299,7 +299,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => galleryRef.current?.click()}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">🖼️</span>
                 <span className="mt-1 block font-bold">上載</span>
@@ -307,7 +307,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('search')}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">🔍</span>
                 <span className="mt-1 block font-bold">搜尋</span>
@@ -315,7 +315,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('saved')}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">⭐</span>
                 <span className="mt-1 block font-bold">收藏</span>
@@ -323,7 +323,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={onScanText}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">⌨️</span>
                 <span className="mt-1 block font-bold">打字</span>
@@ -331,7 +331,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('exercise')}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">🏃</span>
                 <span className="mt-1 block font-bold">運動</span>
@@ -339,7 +339,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('water')}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">💧</span>
                 <span className="mt-1 block font-bold">飲水</span>
@@ -347,7 +347,7 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => setView('weigh')}
-                className="rounded-2xl glass-subcard p-4 text-center"
+                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
                 <span className="block text-3xl">⚖️</span>
                 <span className="mt-1 block font-bold">上磅</span>
@@ -405,7 +405,7 @@ export default function AddSheet({
                         servingSize: `約${grams}克`,
                       })
                     }}
-                    className="rounded-xl glass-cta-amber px-4 py-2 font-bold text-white disabled:opacity-40"
+                    className="pressable rounded-xl glass-cta-amber px-4 py-2 font-bold text-white disabled:opacity-40"
                   >
                     加入
                   </button>
@@ -422,7 +422,7 @@ export default function AddSheet({
                         setSelectedFood(food)
                         setGrams('100')
                       }}
-                      className="flex w-full items-center justify-between gap-2 py-2 text-left"
+                      className="pressable flex w-full items-center justify-between gap-2 py-2 text-left"
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-bold">
@@ -478,7 +478,7 @@ export default function AddSheet({
                         servingSize: f.servingSize,
                       })
                     }
-                    className="min-w-0 flex-1 text-left"
+                    className="pressable min-w-0 flex-1 text-left"
                   >
                     <span className="block truncate font-bold">{f.name}</span>
                     <span className="block text-xs text-white/50">
@@ -488,7 +488,7 @@ export default function AddSheet({
                   <button
                     type="button"
                     onClick={() => db.saved_foods.delete(f.id)}
-                    className="px-2 text-red-400"
+                    className="pressable px-2 text-red-400"
                     aria-label="刪除收藏"
                   >
                     ✕
@@ -530,7 +530,7 @@ export default function AddSheet({
               type="button"
               disabled={!exName.trim() || !Number(exMinutes)}
               onClick={addExercise}
-              className="mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
+              className="pressable mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
             >
               加入
             </button>
@@ -547,14 +547,14 @@ export default function AddSheet({
               <button
                 type="button"
                 onClick={() => addWater(BOTTLE_ML)}
-                className="rounded-2xl glass-cta-teal py-3 font-bold text-white"
+                className="pressable rounded-2xl glass-cta-teal py-3 font-bold text-white"
               >
                 +1 樽（500ml）
               </button>
               <button
                 type="button"
                 onClick={() => addWater(250)}
-                className="rounded-2xl bg-[#14B8A6]/15 py-3 font-bold text-teal-200"
+                className="pressable rounded-2xl bg-[#14B8A6]/15 py-3 font-bold text-teal-200"
               >
                 +250 ml
               </button>
@@ -659,7 +659,7 @@ export default function AddSheet({
               type="button"
               disabled={!Number(weightKg)}
               onClick={addWeight}
-              className="mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
+              className="pressable mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
             >
               記錄
             </button>

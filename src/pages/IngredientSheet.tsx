@@ -145,14 +145,14 @@ export default function IngredientSheet({
         <button
           type="button"
           onClick={onClose}
-          className="glass-pill px-3 py-1.5 text-sm font-bold text-white/80"
+          className="pressable glass-pill px-3 py-1.5 text-sm font-bold text-white/80"
         >
           ‹ 返回
         </button>
         <button
           type="button"
           onClick={onSaveSheet}
-          className="glass-cta-amber rounded-full px-4 py-1.5 text-sm font-bold text-white"
+          className="pressable glass-cta-amber rounded-full px-4 py-1.5 text-sm font-bold text-white"
         >
           搞掂
         </button>
@@ -174,7 +174,7 @@ export default function IngredientSheet({
           onClick={() => setExcluded((v) => !v)}
           title={excluded ? '恢復呢樣' : '剔除呢樣'}
           aria-label={excluded ? '恢復呢樣' : '剔除呢樣'}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/15 text-red-300 ring-1 ring-red-500/40"
+          className="pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/15 text-red-300 ring-1 ring-red-500/40"
         >
           {excluded ? <RotateCcwIcon size={20} /> : <TrashIcon size={20} />}
         </button>
@@ -219,7 +219,7 @@ export default function IngredientSheet({
           <button
             type="button"
             onClick={() => setMode('servings')}
-            className={`rounded-full px-3 py-1.5 text-sm font-bold ${
+            className={`pressable rounded-full px-3 py-1.5 text-sm font-bold ${
               mode === 'servings' ? 'glass-cta-amber text-white' : 'text-white/60'
             }`}
           >
@@ -228,7 +228,7 @@ export default function IngredientSheet({
           <button
             type="button"
             onClick={() => setMode('grams')}
-            className={`rounded-full px-3 py-1.5 text-sm font-bold ${
+            className={`pressable rounded-full px-3 py-1.5 text-sm font-bold ${
               mode === 'grams' ? 'glass-cta-amber text-white' : 'text-white/60'
             }`}
           >
@@ -259,7 +259,7 @@ export default function IngredientSheet({
         <button
           type="button"
           onClick={() => setEditingField('calories')}
-          className="glass-inset mt-2 block w-full rounded-2xl p-3 text-center"
+          className="pressable glass-inset mt-2 block w-full rounded-2xl p-3 text-center"
         >
           <span className="text-3xl font-bold">🔥 {nutrients.calories}</span>
           <span className="ml-1 text-white/50">kcal</span>
@@ -292,7 +292,7 @@ export default function IngredientSheet({
               <button
                 type="button"
                 onClick={() => setEditingField(f.key)}
-                className="mt-0.5 block w-full text-lg font-bold"
+                className="pressable mt-0.5 block w-full text-lg font-bold"
               >
                 {nutrients[f.key]}
                 <span className="text-xs font-normal text-white/40">
@@ -317,7 +317,7 @@ export default function IngredientSheet({
           }
           onDelete()
         }}
-        className={`mt-4 w-full rounded-2xl py-3 font-bold ${
+        className={`pressable mt-4 w-full rounded-2xl py-3 font-bold ${
           confirmDelete
             ? 'bg-red-600 text-white'
             : 'bg-white/[0.06] text-red-400 ring-1 ring-red-500/40'

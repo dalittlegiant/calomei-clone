@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion, MotionConfig } from 'motion/react'
+import { DUR, easeOutExpo, springPill } from './motion/presets'
 import {
   db,
   DEFAULT_VISION_CONFIG,
@@ -133,8 +135,19 @@ export default function App() {
   const inDetail = !!currentEntryId || !!scanFlow || deficitOpen
   const homeActive = tab === 'home' && !inDetail
   const recordsActive = tab === 'records' || !!currentEntryId
+  // Page transition key — overlay pages slide in from the right, tabs
+  // just fade (see DESIGN.md §Motion).
+  const viewKey = currentEntryId
+    ? `result-${currentEntryId}`
+    : scanFlow
+      ? 'scan'
+      : deficitOpen
+        ? 'deficit'
+        : tab
+  const isOverlay = !!currentEntryId || !!scanFlow || deficitOpen
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="relative min-h-dvh text-white tabular-nums">
       {/* Fixed warm-charcoal background + ambient glows (see DESIGN.md §2). */}
       <div
@@ -159,7 +172,7 @@ export default function App() {
                 type="button"
                 onClick={goBack}
                 aria-label="返回"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-lg font-bold backdrop-blur-xl"
+                className="pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-lg font-bold backdrop-blur-xl"
               >
                 ‹
               </button>
@@ -183,7 +196,7 @@ export default function App() {
                   type="button"
                   onClick={() => setToneMenuOpen((v) => !v)}
                   aria-expanded={toneMenuOpen}
-                  className="flex items-center gap-1 glass-pill px-3 py-1.5 text-xs font-bold whitespace-nowrap"
+                  className="pressable flex items-center gap-1 glass-pill px-3 py-1.5 text-xs font-bold whitespace-nowrap"
                 >
                   {tone.emoji} {tone.label}
                   <ChevronDownIcon size={12} className="text-white/50" />
@@ -202,7 +215,7 @@ export default function App() {
                           key={t.id}
                           type="button"
                           onClick={() => changeTone(t.id)}
-                          className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-bold ${
+                          className={`pressable flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-bold ${
                             t.id === profile.toneMode
                               ? 'bg-[#FF9F0A]/25 text-white'
                               : 'text-white/80'
@@ -226,6 +239,14 @@ export default function App() {
 
         <div className="flex flex-1">
           <main className="min-w-0 flex-1">
+            <AnimatePresence mode="popLayout">
+              <motion.div
+                key={viewKey}
+                initial={isOverlay ? { opacity: 0, x: 32 } : { opacity: 0 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={isOverlay ? { opacity: 0, x: -32 } : { opacity: 0 }}
+                transition={{ duration: DUR.slide, ease: easeOutExpo }}
+              >
             {currentEntryId ? (
               <ResultPage
                 entryId={currentEntryId}
@@ -280,6 +301,8 @@ export default function App() {
                 onPromptSaved={() => setPromptRefresh((n) => n + 1)}
               />
             )}
+              </motion.div>
+            </AnimatePresence>
           </main>
         </div>
       </div>
@@ -314,7 +337,7 @@ export default function App() {
           type="button"
           onClick={() => openSheet('menu')}
           aria-label="新增"
-          className="glass-cta-amber mt-2 flex h-12 w-12 items-center justify-center rounded-full text-white"
+          className="glass-cta-amber pressable mt-2 flex h-12 w-12 items-center justify-center rounded-full text-white"
         >
           <PlusIcon size={22} />
         </button>
@@ -359,7 +382,7 @@ export default function App() {
           type="button"
           onClick={() => openSheet('menu')}
           aria-label="新增"
-          className="glass-cta-amber fixed right-4 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white md:hidden"
+          className="glass-cta-amber pressable fixed right-4 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white md:hidden"
         >
           <PlusIcon size={24} />
         </button>
@@ -388,6 +411,7 @@ export default function App() {
         </div>
       )}
     </div>
+    </MotionConfig>
   )
 }
 
@@ -406,12 +430,21 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-w-[64px] flex-col items-center gap-0.5 rounded-full px-3.5 py-2 text-[11px] font-bold whitespace-nowrap transition-colors ${
-        active ? 'bg-white/15 text-[#FF9F0A]' : 'text-white/50'
+      className={`pressable relative flex min-w-[64px] flex-col items-center gap-0.5 rounded-full px-3.5 py-2 text-[11px] font-bold whitespace-nowrap transition-colors ${
+        active ? 'text-[#FF9F0A]' : 'text-white/50'
       }`}
     >
-      {icon}
-      {label}
+      {active && (
+        <motion.span
+          layoutId="nav-pill-bottom"
+          className="absolute inset-0 rounded-full bg-white/15"
+          transition={springPill}
+        />
+      )}
+      <span className="relative flex flex-col items-center gap-0.5">
+        {icon}
+        {label}
+      </span>
     </button>
   )
 }
@@ -431,12 +464,21 @@ function RailButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-center gap-0.5 rounded-full px-3 py-2.5 text-[11px] font-bold whitespace-nowrap transition-colors ${
-        active ? 'bg-white/15 text-[#FF9F0A]' : 'text-white/50'
+      className={`pressable relative flex flex-col items-center gap-0.5 rounded-full px-3 py-2.5 text-[11px] font-bold whitespace-nowrap transition-colors ${
+        active ? 'text-[#FF9F0A]' : 'text-white/50'
       }`}
     >
-      {icon}
-      {label}
+      {active && (
+        <motion.span
+          layoutId="nav-pill-rail"
+          className="absolute inset-0 rounded-full bg-white/15"
+          transition={springPill}
+        />
+      )}
+      <span className="relative flex flex-col items-center gap-0.5">
+        {icon}
+        {label}
+      </span>
     </button>
   )
 }

@@ -92,7 +92,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="glass-pill px-3 py-1.5 text-sm font-bold text-white/80"
+          className="pressable glass-pill px-3 py-1.5 text-sm font-bold text-white/80"
         >
           ✕ 關閉
         </button>
@@ -103,7 +103,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
         <button
           type="button"
           onClick={() => setTab('search')}
-          className={`flex-1 rounded-full py-2 text-sm font-bold ${
+          className={`pressable flex-1 rounded-full py-2 text-sm font-bold ${
             tab === 'search' ? 'glass-cta-amber text-white' : 'text-white/60'
           }`}
         >
@@ -112,7 +112,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
         <button
           type="button"
           onClick={() => setTab('manual')}
-          className={`flex-1 rounded-full py-2 text-sm font-bold ${
+          className={`pressable flex-1 rounded-full py-2 text-sm font-bold ${
             tab === 'manual' ? 'glass-cta-amber text-white' : 'text-white/60'
           }`}
         >
@@ -156,7 +156,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
                   <button
                     type="button"
                     onClick={() => addLocalFood(food, 100)}
-                    className="shrink-0 rounded-xl bg-[#FF9F0A]/15 px-3 py-1.5 text-sm font-bold text-amber-200"
+                    className="pressable shrink-0 rounded-xl bg-[#FF9F0A]/15 px-3 py-1.5 text-sm font-bold text-amber-200"
                   >
                     ＋100克
                   </button>
@@ -281,7 +281,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
             type="button"
             disabled={manualName.trim() === ''}
             onClick={addManual}
-            className="glass-cta-amber mt-3 w-full rounded-2xl py-3 font-bold text-white"
+            className="pressable glass-cta-amber mt-3 w-full rounded-2xl py-3 font-bold text-white"
           >
             加入呢餐
           </button>

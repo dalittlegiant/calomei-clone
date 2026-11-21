@@ -175,20 +175,14 @@ select.glass-input option {
   color: #111;
 }
 
-/* iOS-style pagination dots (carousel) — warm amber. */
-.page-dot {
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
-  transition: all 0.3s ease;
+/* Tactile press — 全站共用微互動（見 DESIGN.md §Motion）。
+   只驅動 transform（GPU 屬性），150ms；絕不動畫化 backdrop-filter /
+   width / height / box-shadow。撳落去縮 3%，放手彈返。 */
+.pressable {
+  transition: transform 150ms ease-out;
 }
-.page-dot-on {
-  width: 20px;
-  background: var(--obsidian-amber);
-  box-shadow: 0 0 8px rgba(255, 159, 10, 0.6);
-}
-.page-dot-off {
-  width: 6px;
+.pressable:active {
+  transform: scale(0.97);
 }
 
 /* Hide the scrollbar on the scorecard carousel (swipe + dots instead). */

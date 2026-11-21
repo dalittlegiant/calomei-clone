@@ -5,6 +5,8 @@
 // - 每日明細：只列有記數嘅日子，由新到舊
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { motion } from 'motion/react'
+import { springPill } from '../motion/presets'
 import { db, type UserProfile } from '../lib/db'
 import { activityFactor, mifflinBmr } from '../lib/nutrition'
 import { dayStartMinutes, getDayStart, todayLogStartMs } from '../lib/day'
@@ -112,7 +114,7 @@ export default function DeficitDetailPage({ profile, onBack }: Props) {
       <button
         type="button"
         onClick={onBack}
-        className="mt-3 text-base font-bold text-[#FF9F0A]"
+        className="pressable mt-3 text-base font-bold text-[#FF9F0A]"
       >
         ← 返回進度
       </button>
@@ -164,13 +166,18 @@ export default function DeficitDetailPage({ profile, onBack }: Props) {
                 key={t.id}
                 type="button"
                 onClick={() => setMode(t.id)}
-                className={`rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap ${
-                  mode === t.id
-                    ? 'glass-cta-amber text-white'
-                    : 'text-white/60'
+                className={`pressable relative rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap ${
+                  mode === t.id ? 'text-white' : 'text-white/60'
                 }`}
               >
-                {t.label}
+                {mode === t.id && (
+                  <motion.span
+                    layoutId="deficit-mode-pill"
+                    className="absolute inset-0 rounded-full glass-cta-amber"
+                    transition={springPill}
+                  />
+                )}
+                <span className="relative">{t.label}</span>
               </button>
             ))}
           </div>
@@ -180,13 +187,18 @@ export default function DeficitDetailPage({ profile, onBack }: Props) {
                 key={r}
                 type="button"
                 onClick={() => changeRange(r)}
-                className={`rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap ${
-                  range === r
-                    ? 'glass-cta-amber text-white'
-                    : 'text-white/60'
+                className={`pressable relative rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap ${
+                  range === r ? 'text-white' : 'text-white/60'
                 }`}
               >
-                {r} 日
+                {range === r && (
+                  <motion.span
+                    layoutId="deficit-range-pill"
+                    className="absolute inset-0 rounded-full glass-cta-amber"
+                    transition={springPill}
+                  />
+                )}
+                <span className="relative">{r} 日</span>
               </button>
             ))}
           </div>
@@ -305,7 +317,7 @@ export default function DeficitDetailPage({ profile, onBack }: Props) {
               setSelectedKey(null)
             }}
             aria-label="上一期"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg font-bold text-white/80"
+            className="pressable flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg font-bold text-white/80"
           >
             ‹
           </button>
@@ -320,7 +332,7 @@ export default function DeficitDetailPage({ profile, onBack }: Props) {
               setSelectedKey(null)
             }}
             aria-label="下一期"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg font-bold text-white/80 disabled:opacity-30"
+            className="pressable flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg font-bold text-white/80 disabled:opacity-30"
           >
             ›
           </button>
@@ -341,7 +353,7 @@ export default function DeficitDetailPage({ profile, onBack }: Props) {
                 key={d.key}
                 type="button"
                 onClick={() => setSelectedKey(d.key)}
-                className={`flex w-full items-center gap-3 py-3 text-left ${
+                className={`pressable flex w-full items-center gap-3 py-3 text-left ${
                   selected?.key === d.key ? 'rounded-2xl bg-white/[0.05] px-2' : ''
                 }`}
               >

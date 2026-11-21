@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { motion } from 'motion/react'
+import { springPill } from '../motion/presets'
 import { db, getHealthShortcutName, type UserProfile } from '../lib/db'
 import { MEAL_LABELS, type MealType } from '../lib/image'
 import { isoDate, openHealthShortcut } from '../lib/health'
@@ -272,21 +274,21 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           <button
             type="button"
             onClick={() => addWater(BOTTLE_ML)}
-            className="rounded-xl glass-cta-teal py-2 font-bold text-white"
+            className="pressable rounded-xl glass-cta-teal py-2 font-bold text-white"
           >
             +1 樽
           </button>
           <button
             type="button"
             onClick={() => addWater(250)}
-            className="rounded-xl bg-[#14B8A6]/15 py-2 font-bold text-teal-200"
+            className="pressable rounded-xl bg-[#14B8A6]/15 py-2 font-bold text-teal-200"
           >
             +250 ml
           </button>
           <button
             type="button"
             onClick={() => addWater(100)}
-            className="rounded-xl bg-[#14B8A6]/15 py-2 font-bold text-teal-200"
+            className="pressable rounded-xl bg-[#14B8A6]/15 py-2 font-bold text-teal-200"
           >
             +100 ml
           </button>
@@ -304,7 +306,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             type="button"
             disabled={!Number(customWater)}
             onClick={addCustomWater}
-            className="rounded-xl glass-cta-teal px-4 py-2 font-bold text-white disabled:opacity-40"
+            className="pressable rounded-xl glass-cta-teal px-4 py-2 font-bold text-white disabled:opacity-40"
           >
             加入
           </button>
@@ -312,7 +314,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             type="button"
             disabled={(waterToday ?? []).length === 0}
             onClick={undoWater}
-            className="rounded-xl glass-subcard px-3 py-2 font-bold text-white/50 disabled:opacity-40"
+            className="pressable rounded-xl glass-subcard px-3 py-2 font-bold text-white/50 disabled:opacity-40"
           >
             撤銷
           </button>
@@ -321,7 +323,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           type="button"
           disabled={waterTotal <= 0}
           onClick={exportWater}
-          className="mt-2 w-full rounded-2xl glass-subcard py-2.5 font-bold text-red-400 ring-1 ring-red-500/40 disabled:opacity-40"
+          className="pressable mt-2 w-full rounded-2xl glass-subcard py-2.5 font-bold text-red-400 ring-1 ring-red-500/40 disabled:opacity-40"
         >
           🍎 同步今日飲水去 Apple Health
         </button>
@@ -364,7 +366,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             type="button"
             disabled={!exName.trim() || !Number(exMinutes)}
             onClick={addExercise}
-            className="shrink-0 rounded-xl glass-cta-amber px-3 py-2 font-bold text-white disabled:opacity-40"
+            className="pressable shrink-0 rounded-xl glass-cta-amber px-3 py-2 font-bold text-white disabled:opacity-40"
           >
             加入
           </button>
@@ -385,7 +387,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                   <button
                     type="button"
                     onClick={() => db.exercise_entries.delete(e.id)}
-                    className="px-2 text-red-400"
+                    className="pressable px-2 text-red-400"
                     aria-label="刪除運動記錄"
                   >
                     ✕
@@ -422,7 +424,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             type="button"
             disabled={!Number(weightKg)}
             onClick={addWeight}
-            className="shrink-0 rounded-xl glass-cta-amber px-3 py-2 font-bold text-white disabled:opacity-40"
+            className="pressable shrink-0 rounded-xl glass-cta-amber px-3 py-2 font-bold text-white disabled:opacity-40"
           >
             記錄
           </button>
@@ -442,7 +444,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             <button
               type="button"
               onClick={exportWeight}
-              className="ml-2 font-bold text-red-400"
+              className="pressable ml-2 font-bold text-red-400"
             >
               🍎 同步去 Apple Health
             </button>
@@ -461,13 +463,22 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={`flex-1 rounded-xl py-2 text-sm font-bold ${
+            className={`pressable relative flex-1 rounded-xl py-2 text-sm font-bold ${
               filter === f
-                ? 'glass-cta-amber text-white'
+                ? 'text-white'
                 : 'glass-subcard text-white/60 ring-1 ring-white/15'
             }`}
           >
-            {f === 'all' ? '全部' : MEAL_LABELS[f]}
+            {filter === f && (
+              <motion.span
+                layoutId="history-filter-pill"
+                className="absolute inset-0 rounded-2xl glass-cta-amber"
+                transition={springPill}
+              />
+            )}
+            <span className="relative">
+              {f === 'all' ? '全部' : MEAL_LABELS[f]}
+            </span>
           </button>
         ))}
       </div>
@@ -492,7 +503,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                 key={e.id}
                 type="button"
                 onClick={() => onOpen(e.id)}
-                className="flex w-full items-center gap-3 glass-subcard p-3 text-left"
+                className="pressable flex w-full items-center gap-3 glass-subcard p-3 text-left"
               >
                 {e.imageDataUrl ? (
                   <img
@@ -528,7 +539,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
         <button
           type="button"
           onClick={() => setFeedDays((d) => d + 30)}
-          className="glass-subcard mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
+          className="pressable glass-subcard mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
         >
           載入更多（仲有 {olderCount} 餐）
         </button>

@@ -55,3 +55,18 @@
 > `src/lib/vision.ts`、`src/lib/foodDb.ts`、`src/lib/health.ts`（Audit
 > H1–L8 修復清單），Dexie schema version 不變；之後 `src/lib/` 恢復禁區。
 > 今次 `git diff --stat` 會見到 lib 有改動，係特批，唔係違規。
+
+## 動效（Motion Polish，2026-11-22）
+
+- 套件：`motion`（`motion/react`）。共用規範唯一真相來源係
+  `src/motion/presets.ts`（spring／時長／曲線）＋`DESIGN.md` §12；新功能
+  沿用同一套，唔准自創時長／曲線。
+- 鐵律：只准驅動 `transform`／`opacity`／SVG `stroke-dashoffset`；絕不動畫化
+  `backdrop-filter`、`width`、`height`、`box-shadow`。轉場 180–350ms
+  （圓環 400ms 例外）。
+- `layoutId` 全站唯一：摺埋底部導航同展開右欄係兩個同時 mount 緊嘅 nav，
+  膠囊 id 一定要分開（`nav-pill-bottom`／`nav-pill-rail`）。
+- 新嘅底部彈窗／對話框一律用 `GlassModal`（AnimatePresence 內置喺入面）；
+  新嘅可撳元素加 `.pressable`（`src/index.css`）。
+- 驗收同上面一樣：build 零錯誤＋真實渲染＋`git diff --stat` 確認
+  `src/lib/` 同 `src/config/prompts.ts` 無郁。

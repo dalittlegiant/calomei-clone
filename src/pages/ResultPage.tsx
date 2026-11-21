@@ -510,7 +510,7 @@ export default function ResultPage({
             type="button"
             onClick={onBack}
             aria-label="返回"
-            className="absolute top-3 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl ring-1 ring-white/20"
+            className="pressable absolute top-3 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl ring-1 ring-white/20"
           >
             <XIcon size={18} />
           </button>
@@ -519,7 +519,7 @@ export default function ResultPage({
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 font-bold text-[#FF9F0A]"
+          className="pressable mt-4 font-bold text-[#FF9F0A]"
         >
           ← 返回記錄
         </button>
@@ -535,7 +535,7 @@ export default function ResultPage({
             type="button"
             onClick={onSaveFavorite}
             aria-label="收藏呢餐"
-            className="flex w-11 flex-col items-center gap-0.5"
+            className="pressable flex w-11 flex-col items-center gap-0.5"
           >
             <span className="glass-subcard flex h-10 w-10 items-center justify-center rounded-full text-[#FF9F0A]">
               <StarIcon size={20} />
@@ -547,7 +547,7 @@ export default function ResultPage({
             onClick={onExportHealth}
             title="經 iOS 捷徑寫入 Apple Health（只適用於 iOS；捷徑名喺「設定」改）"
             aria-label="同步去 Apple Health"
-            className="flex w-11 flex-col items-center gap-0.5"
+            className="pressable flex w-11 flex-col items-center gap-0.5"
           >
             <span className="glass-subcard flex h-10 w-10 items-center justify-center rounded-full text-red-400">
               <HeartIcon size={20} />
@@ -558,7 +558,7 @@ export default function ResultPage({
             type="button"
             onClick={onDelete}
             aria-label="刪除呢餐"
-            className="flex w-11 flex-col items-center gap-0.5"
+            className="pressable flex w-11 flex-col items-center gap-0.5"
           >
             <span
               className={`glass-subcard flex h-10 w-10 items-center justify-center rounded-full text-red-400 ${
@@ -604,7 +604,7 @@ export default function ResultPage({
           <button
             type="button"
             onClick={() => setEditingTitle(true)}
-            className="min-w-0 flex-1 text-left"
+            className="pressable min-w-0 flex-1 text-left"
           >
             <h1 className="truncate text-2xl font-bold">{displayTitle}</h1>
             <span className="text-xs text-white/40">撳標題可以改名</span>
@@ -613,7 +613,7 @@ export default function ResultPage({
         <button
           type="button"
           onClick={() => setPortionOpen(true)}
-          className="glass-pill mt-1 flex shrink-0 items-center gap-1 px-3 py-1.5 text-sm font-bold whitespace-nowrap"
+          className="pressable glass-pill mt-1 flex shrink-0 items-center gap-1 px-3 py-1.5 text-sm font-bold whitespace-nowrap"
         >
           {fmtMultiplier(multiplier)} 份 <PencilIcon size={13} />
         </button>
@@ -625,7 +625,7 @@ export default function ResultPage({
         onClick={() =>
           openTotalEdit('calories', '總卡路里', 'kcal', '1')
         }
-        className="glass-card mt-3 block w-full p-4 text-center"
+        className="pressable glass-card mt-3 block w-full p-4 text-center"
       >
         <span className="text-4xl font-bold">🔥 {totals.calories}</span>
         <span className="ml-1 text-lg text-white/50">kcal</span>
@@ -638,7 +638,7 @@ export default function ResultPage({
             key={f.field}
             type="button"
             onClick={() => openTotalEdit(f.field, f.label, f.unit, f.step)}
-            className="glass-inset rounded-2xl p-3 text-center"
+            className="pressable glass-inset rounded-2xl p-3 text-center"
           >
             <p className="text-xs text-white/50">{f.label}</p>
             <p className="mt-0.5 text-lg font-bold">
@@ -660,7 +660,7 @@ export default function ResultPage({
         <button
           type="button"
           onClick={() => setAddOpen(true)}
-          className="text-sm font-bold text-[#FF9F0A]"
+          className="pressable text-sm font-bold text-[#FF9F0A]"
         >
           ＋ 加多樣
         </button>
@@ -673,7 +673,7 @@ export default function ResultPage({
               key={i}
               type="button"
               onClick={() => setEditingIndex(i)}
-              className={`glass-subcard flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-3 text-left ${
+              className={`pressable glass-subcard flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-3 text-left ${
                 item.isExcluded ? 'opacity-50' : ''
               }`}
             >
@@ -769,14 +769,14 @@ export default function ResultPage({
           <button
             type="button"
             onClick={() => setCorrectOpen(true)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-3 font-bold text-amber-200 ring-1 ring-[#FF9F0A]/50"
+            className="pressable flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-3 font-bold text-amber-200 ring-1 ring-[#FF9F0A]/50"
           >
             <SparklesIcon size={18} /> AI 修正
           </button>
           <button
             type="button"
             onClick={onSaveAndBack}
-            className="glass-cta-amber flex-[1.3] rounded-full px-3 py-3 font-bold text-white"
+            className="pressable glass-cta-amber flex-[1.3] rounded-full px-3 py-3 font-bold text-white"
           >
             搞掂
           </button>
@@ -830,7 +830,7 @@ export default function ResultPage({
             type="button"
             disabled={correcting || !correctTitles.trim()}
             onClick={onCorrect}
-            className="glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
+            className="pressable glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
           >
             {correcting ? '糾正緊…' : '糾正'}
           </button>
@@ -858,7 +858,7 @@ export default function ResultPage({
               key={m}
               type="button"
               onClick={() => applyMultiplier(m)}
-              className={`rounded-full px-4 py-2 text-sm font-bold ${
+              className={`pressable rounded-full px-4 py-2 text-sm font-bold ${
                 multiplier === m
                   ? 'glass-cta-amber text-white'
                   : 'glass-subcard text-white/80'
@@ -889,7 +889,7 @@ export default function ResultPage({
               Number(portionCustom) <= 0
             }
             onClick={() => applyMultiplier(Number(portionCustom))}
-            className="glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
+            className="pressable glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
           >
             套用
           </button>
@@ -932,7 +932,7 @@ export default function ResultPage({
                   totals[totalEdit.field] <= 0
                 }
                 onClick={applyTotalEdit}
-                className="glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
+                className="pressable glass-cta-amber shrink-0 rounded-xl px-4 py-2 font-bold text-white disabled:opacity-40"
               >
                 套用
               </button>
