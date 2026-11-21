@@ -56,6 +56,20 @@ export async function compressImage(file: Blob): Promise<CompressedImage> {
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner'
 
+/** 1×1 white JPEG (base64, no data: prefix) — a stand-in image for
+ * text-only （打字） scans, where the estimate comes from the description. */
+export function placeholderImageBase64(): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, 1, 1)
+  }
+  return (canvas.toDataURL('image/jpeg', 0.7).split(',')[1] ?? '')
+}
+
 export const MEAL_LABELS: Record<MealType, string> = {
   breakfast: '早餐',
   lunch: '午餐',

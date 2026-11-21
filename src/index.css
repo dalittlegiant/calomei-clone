@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (the app toggles `.dark` on <html>; dark is default). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -11,6 +14,20 @@ body {
     -apple-system, BlinkMacSystemFont, "PingFang HK", "PingFang TC",
     "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif;
   overscroll-behavior-y: none;
+}
+
+.dark body {
+  background-color: #12100e;
+  color: #f5f5f4;
+}
+
+/* Hide the scrollbar on the scorecard carousel (swipe + dots instead). */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* iOS: inputs at 16px+ so Safari does not zoom on focus */

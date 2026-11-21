@@ -1,9 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getHealthShortcutName, type UserProfile } from '../lib/db'
 import { MEAL_LABELS, type MealType } from '../lib/image'
 import { isoDate, openHealthShortcut } from '../lib/health'
-import { effectiveTarget } from '../lib/nutrition'
+import {
+  BOTTLE_ML,
+  effectiveTarget,
+  WATER_TARGET_ML,
+} from '../lib/nutrition'
+import {
+  dayStartMinutes,
+  getDayStart,
+  logDayKey,
+  todayLogStartMs,
+} from '../lib/day'
 
 interface Props {
   profile: UserProfile
@@ -12,14 +22,15 @@ interface Props {
 
 type Filter = 'all' | MealType
 
-function startOfToday(): number {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
-
 export default function HistoryPage({ profile, onOpen }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
+  const [dayStart, setDayStart] = useState('00:00')
+
+  useEffect(() => {
+    getDayStart().then(setDayStart)
+  }, [])
+
+  const startMin = dayStartMinutes(dayStart)
   const entries = useLiveQuery(
     () => db.food_entries.orderBy('date').reverse().toArray(),
     [],
@@ -30,7 +41,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
   )
   const target = effectiveTarget(profile, override ?? null)
 
-  const todayStart = startOfToday()
+  const todayStart = todayLogStartMs(startMin)
   const todayFood = (entries ?? []).filter((e) => e.date >= todayStart)
   const todayTotals = todayFood.reduce(
     (a, e) => ({
@@ -80,18 +91,27 @@ export default function HistoryPage({ profile, onOpen }: Props) {
     )
     const map = new Map<string, typeof list>()
     for (const e of list) {
-      const key = new Date(e.date).toLocaleDateString('zh-HK', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        weekday: 'short',
-      })
+      const key = logDayKey(e.date, startMin)
       const arr = map.get(key) ?? []
       arr.push(e)
       map.set(key, arr)
     }
     return [...map.entries()]
-  }, [entries, filter])
+  }, [entries, filter, startMin])
+
+  function dayLabel(key: string): string {
+    const todayKey = logDayKey(Date.now(), startMin)
+    if (key === todayKey) return '今日'
+    const yesterday = logDayKey(Date.now() - 86_400_000, startMin)
+    if (key === yesterday) return '尋日'
+    const d = new Date(`${key}T00:00:00`)
+    return d.toLocaleDateString('zh-HK', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      weekday: 'short',
+    })
+  }
 
   function flash(setter: (m: string | null) => void, msg: string) {
     setter(msg)
@@ -193,7 +213,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
   return (
     <div className="mx-auto w-full max-w-lg px-4 pb-8">
       <div className="mt-6 rounded-3xl bg-amber-500 p-4 text-white">
-        <p className="text-sm opacity-90">今日已食</p>
+        <p className="text-sm opacity-90">今日案底</p>
         <p className="text-3xl font-bold">
           {todayTotals.calories}{' '}
           <span className="text-base">/ {target.calories} kcal</span>
@@ -211,24 +231,39 @@ export default function HistoryPage({ profile, onOpen }: Props) {
         </p>
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
+      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
         <div className="flex items-baseline justify-between">
           <h3 className="font-bold">💧 今日飲水</h3>
-          <span className="text-sm text-stone-500">
-            <b className="text-lg text-stone-800">{waterTotal}</b> ml
+          <span className="text-sm text-stone-500 dark:text-stone-400">
+            <b className="text-lg text-stone-800 dark:text-stone-100">
+              {Math.floor(waterTotal / BOTTLE_ML)} /{' '}
+              {Math.round(WATER_TARGET_ML / BOTTLE_ML)} 樽
+            </b>{' '}
+            · {waterTotal} ml
           </span>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {[100, 250, 500].map((ml) => (
-            <button
-              key={ml}
-              type="button"
-              onClick={() => addWater(ml)}
-              className="rounded-xl bg-sky-100 py-2 font-bold text-sky-800 active:bg-sky-200"
-            >
-              +{ml} ml
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => addWater(BOTTLE_ML)}
+            className="rounded-xl bg-sky-500 py-2 font-bold text-white active:bg-sky-600"
+          >
+            +1 樽
+          </button>
+          <button
+            type="button"
+            onClick={() => addWater(250)}
+            className="rounded-xl bg-sky-100 dark:bg-sky-950 py-2 font-bold text-sky-800 dark:text-sky-200 active:bg-sky-200"
+          >
+            +250 ml
+          </button>
+          <button
+            type="button"
+            onClick={() => addWater(100)}
+            className="rounded-xl bg-sky-100 dark:bg-sky-950 py-2 font-bold text-sky-800 dark:text-sky-200 active:bg-sky-200"
+          >
+            +100 ml
+          </button>
         </div>
         <div className="mt-2 flex gap-2">
           <input
@@ -237,7 +272,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={customWater}
             onChange={(e) => setCustomWater(e.target.value)}
             placeholder="自訂毫升"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-sky-400"
+            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-sky-400"
           />
           <button
             type="button"
@@ -251,7 +286,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             type="button"
             disabled={(waterToday ?? []).length === 0}
             onClick={undoWater}
-            className="rounded-xl bg-white px-3 py-2 font-bold text-stone-500 ring-1 ring-stone-200 disabled:opacity-40"
+            className="rounded-xl bg-white dark:bg-stone-900 px-3 py-2 font-bold text-stone-500 dark:text-stone-400 ring-1 ring-stone-200 dark:ring-stone-700 disabled:opacity-40"
           >
             撤銷
           </button>
@@ -260,28 +295,28 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           type="button"
           disabled={waterTotal <= 0}
           onClick={exportWater}
-          className="mt-2 w-full rounded-2xl bg-white py-2.5 font-bold text-red-500 ring-1 ring-red-200 disabled:opacity-40 active:bg-red-50"
+          className="mt-2 w-full rounded-2xl bg-white dark:bg-stone-900 py-2.5 font-bold text-red-500 ring-1 ring-red-200 disabled:opacity-40 active:bg-red-50"
         >
           🍎 同步今日飲水去 Apple Health
         </button>
         {waterMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-center text-sm text-green-700">
+          <p className="mt-2 rounded-xl bg-green-50 dark:bg-green-950 px-3 py-2 text-center text-sm text-green-700 dark:text-green-300">
             {waterMsg}
           </p>
         )}
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
+      <div className="mt-4 rounded-3xl bg-white dark:bg-stone-900 p-4 shadow-sm">
         <h3 className="font-bold">📝 快速記錄</h3>
 
-        <p className="mt-3 text-sm font-bold text-stone-600">🏃 運動</p>
+        <p className="mt-3 text-sm font-bold text-stone-600 dark:text-stone-300">🏃 運動</p>
         <div className="mt-1 flex gap-2">
           <input
             type="text"
             value={exName}
             onChange={(e) => setExName(e.target.value)}
             placeholder="做咩運動？"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
           />
           <input
             type="number"
@@ -289,7 +324,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={exMinutes}
             onChange={(e) => setExMinutes(e.target.value)}
             placeholder="分鐘"
-            className="w-20 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            className="w-20 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
           />
           <input
             type="number"
@@ -297,7 +332,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={exKcal}
             onChange={(e) => setExKcal(e.target.value)}
             placeholder="kcal"
-            className="w-20 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            className="w-20 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
           />
           <button
             type="button"
@@ -315,7 +350,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
               .map((e) => (
                 <li
                   key={e.id}
-                  className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-1.5"
+                  className="flex items-center justify-between rounded-xl bg-amber-50 dark:bg-amber-950 px-3 py-1.5"
                 >
                   <span>
                     {e.name} · {e.durationMinutes} 分鐘 · {e.caloriesBurned}{' '}
@@ -331,13 +366,13 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                   </button>
                 </li>
               ))}
-            <li className="px-1 text-xs text-stone-500">
+            <li className="px-1 text-xs text-stone-500 dark:text-stone-400">
               今日運動共燒 {exerciseKcal} kcal
             </li>
           </ul>
         )}
 
-        <p className="mt-4 text-sm font-bold text-stone-600">⚖️ 體重／體脂</p>
+        <p className="mt-4 text-sm font-bold text-stone-600 dark:text-stone-300">⚖️ 體重／體脂</p>
         <div className="mt-1 flex gap-2">
           <input
             type="number"
@@ -346,7 +381,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={weightKg}
             onChange={(e) => setWeightKg(e.target.value)}
             placeholder="體重 kg"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
           />
           <input
             type="number"
@@ -355,7 +390,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             value={bodyFatPct}
             onChange={(e) => setBodyFatPct(e.target.value)}
             placeholder="體脂 %（可選）"
-            className="min-w-0 flex-1 rounded-xl border border-stone-200 px-3 py-2 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 rounded-xl border border-stone-200 dark:border-stone-700 px-3 py-2 outline-none focus:border-amber-400"
           />
           <button
             type="button"
@@ -367,7 +402,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           </button>
         </div>
         {(latestWeight ?? [])[0] && (
-          <p className="mt-2 text-sm text-stone-500">
+          <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
             最新：
             {(latestWeight ?? [])[0].weightKG} kg
             {(latestBodyFat ?? [])[0]
@@ -388,7 +423,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           </p>
         )}
         {logMsg && (
-          <p className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-center text-sm text-green-700">
+          <p className="mt-2 rounded-xl bg-green-50 dark:bg-green-950 px-3 py-2 text-center text-sm text-green-700 dark:text-green-300">
             {logMsg}
           </p>
         )}
@@ -403,7 +438,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
             className={`flex-1 rounded-xl py-2 text-sm font-bold ${
               filter === f
                 ? 'bg-amber-500 text-white'
-                : 'bg-white text-stone-600 ring-1 ring-stone-200'
+                : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 ring-1 ring-stone-200 dark:ring-stone-700'
             }`}
           >
             {f === 'all' ? '全部' : MEAL_LABELS[f]}
@@ -412,16 +447,16 @@ export default function HistoryPage({ profile, onOpen }: Props) {
       </div>
 
       {groups.length === 0 && (
-        <p className="mt-8 text-center text-stone-400">
-          未有記錄，去「影相」記低第一餐啦 🍽️
+        <p className="mt-8 text-center text-stone-400 dark:text-stone-500">
+          仲未有案底 — 撳「又食嘢？加啦」認第一餐啦 🍽️
         </p>
       )}
 
       {groups.map(([dateLabel, list]) => (
         <div key={dateLabel} className="mt-6">
           <div className="flex items-baseline justify-between px-1">
-            <h3 className="font-bold">{dateLabel}</h3>
-            <span className="text-sm text-stone-500">
+            <h3 className="font-bold">{dayLabel(dateLabel)}</h3>
+            <span className="text-sm text-stone-500 dark:text-stone-400">
               {list.reduce((a, e) => a + e.calories, 0)} kcal
             </span>
           </div>
@@ -431,7 +466,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                 key={e.id}
                 type="button"
                 onClick={() => onOpen(e.id)}
-                className="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm active:bg-amber-50"
+                className="flex w-full items-center gap-3 rounded-2xl bg-white dark:bg-stone-900 p-3 text-left shadow-sm active:bg-amber-50"
               >
                 {e.imageDataUrl ? (
                   <img
@@ -440,13 +475,13 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                     className="h-14 w-14 shrink-0 rounded-xl object-cover"
                   />
                 ) : (
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-2xl">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900 text-2xl">
                     🍽️
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-bold">{e.name}</span>
-                  <span className="block text-sm text-stone-500">
+                  <span className="block text-sm text-stone-500 dark:text-stone-400">
                     {MEAL_LABELS[e.mealType as MealType] ?? e.mealType} ·{' '}
                     {new Date(e.date).toLocaleTimeString('zh-HK', {
                       hour: '2-digit',

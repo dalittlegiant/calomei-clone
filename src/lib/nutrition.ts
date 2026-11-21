@@ -23,6 +23,24 @@ export const DEFAULT_SUGAR_CEILING_G = 50
 export const DEFAULT_FIBER_FLOOR_G = 25
 export const DEFAULT_SODIUM_CEILING_MG = 2000
 
+/** Water: the original app counts bottles — 1 樽 = 500 ml, target 4 樽. */
+export const WATER_TARGET_ML = 2000
+export const BOTTLE_ML = 500
+
+export function bmi(weightKG: number, heightCM: number): number {
+  if (!heightCM || heightCM <= 0) return 0
+  return weightKG / (heightCM / 100) ** 2
+}
+
+/** HK-style bands (the original app calls 23.5 過重， standard at ≤22.9). */
+export function bmiLabel(bmiValue: number): string {
+  if (bmiValue <= 0) return '—'
+  if (bmiValue < 18.5) return '偏輕'
+  if (bmiValue < 23) return '標準'
+  if (bmiValue < 25) return '過重'
+  return '肥胖'
+}
+
 export const ACTIVITY_OPTIONS: Array<{
   value: string
   label: string

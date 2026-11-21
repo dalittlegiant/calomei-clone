@@ -159,6 +159,9 @@ export interface BodyFatEntry {
   /** Epoch ms of the reading. */
   date: number
   createdAt: number
+  /** Optional extras (unindexed props — no Dexie migration needed). */
+  muscleRate?: number | null
+  visceralFat?: number | null
 }
 
 /**
@@ -371,6 +374,17 @@ export async function resetTonePromptOverride(tone: string): Promise<void> {
 
 /** iOS Shortcut name used for the Apple Health export (Settings). */
 export const DEFAULT_HEALTH_SHORTCUT_NAME = 'CaLoMeiToHealth'
+
+export type ThemeMode = 'dark' | 'light'
+
+/** Dark is the default (matches the original app's dark theme). */
+export async function getTheme(): Promise<ThemeMode> {
+  return getSetting<ThemeMode>('theme', 'dark')
+}
+
+export async function setTheme(theme: ThemeMode): Promise<void> {
+  await setSetting('theme', theme)
+}
 
 export async function getHealthShortcutName(): Promise<string> {
   return getSetting<string>(

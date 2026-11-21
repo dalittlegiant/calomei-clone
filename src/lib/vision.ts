@@ -50,6 +50,8 @@ export interface ScanFoodRequest {
   /** v1.7.0: today's earlier roast comments, so the model does not repeat
    * the same roast. Sent as prompt context, not part of the JSON schema. */
   previous_roasts?: string[] | null
+  /** Text-only （打字） mode: no photo — estimate purely from the text. */
+  textOnly?: boolean
 }
 
 export interface CorrectFoodRequest {
@@ -452,6 +454,11 @@ export async function scanFood(
   systemPrompt: string,
 ): Promise<FoodScanResult> {
   const contextParts = [`餐類：${req.meal_type}；地區：${req.region}。`]
+  if (req.textOnly) {
+    contextParts.push(
+      '用戶係用打字輸入，冇相提供；請完全根據下面嘅文字描述估算食物同營養，唔好話睇唔到相。',
+    )
+  }
   if (req.food_description?.trim()) {
     contextParts.push(`用戶補充：${req.food_description.trim()}`)
   }

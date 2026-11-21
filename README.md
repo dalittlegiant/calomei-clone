@@ -23,9 +23,18 @@ npm run preview    # 本地預覽生產 build
 ## 用法
 
 1. 開 App → 去「設定」輸入 Vision API Key（預設 OpenRouter + `openai/gpt-4o-mini`）。Model 有快捷選項（gpt-4o-mini、deepseek-v4.1-flash、gemini-2.5-flash）；OpenRouter 仲可以揀思考模式（預設關閉，避免推理模型食晒 max_tokens 出唔到 JSON）。
-2. 「影相」影低餐嘢 → AI 分析 → 結果頁可以改名、改卡路里、剔走唔計嘅嘢、糾正認錯嘅食物、加離線食物庫嘅嘢。影相頁有兩個模式：「影食物」同「影營養標籤」（影包裝背面，直接讀標籤數字）。
-3. 「記錄」睇返每日總數 vs 每日目標（Mifflin-St Jeor），仲有快速加水（+100/+250/+500 ml）、運動、體重／體脂記錄。
-4. 「設定」→ 語氣：揀老味 / 18+ / 仁慈 / 教會弟兄 / 媽咪 / 佛系，仲可以編輯每個語氣嘅 Prompt（存喺 Dexie，隨時重置返預設值）。「自訂每日目標」可以改卡路里、蛋白質、碳水、脂肪、糖上限、纖維下限、鈉上限（留空即係用預設值）。
+2. **主頁（今日總覽）**：sticky 星期 strip（撳日子篩選案底）+ 兩頁 scorecard carousel（第 1 頁卡路里 + 三大營養素，第 2 頁飲水 + 糖／纖維／鈉，下面有兩點指示器）+ 兩粒大掣「又食嘢？加啦」／「做咗運動？」+ 案底 feed（每餐有相 + roast banner + 時間 + 卡路里 + 蛋白質／碳水／脂肪）。深色主題預設；闊熒幕（iPhone Duo 打開）右邊出垂直 tool band，摺埋／直向就底部 tab bar。
+3. **新增（＋）**：統一 sheet「又食嘢？揀個方法認罪」— 影相／上載／搜尋／收藏／打字／運動／飲水／上磅。打字模式冇相都得，照文字估算。
+4. 「記錄」睇返每日總數 vs 每日目標（Mifflin-St Jeor），飲水改樽制（1 樽 500ml，目標 4 樽），仲有運動、體重／體脂記錄。
+5. 「進度」：30 日營養圖（7 種營養切換，上限虛線，超標紅柱）+ 身體卡（體重／體脂／肌肉率／內臟脂肪／BMI 趨勢）+ 熱量赤字（近 14 日，約 7,700 kcal ≈ 1 公斤體脂）。
+6. 「設定」→ 個人戰績（連續／最長／受刑日數／記錄幾多次／你嘅配額）；一日開始時間（預設 00:00）；主題（深色／淺色）。語氣：揀老味 / 18+ / 仁慈 / 教會弟兄 / 媽咪 / 佛系，仲可以編輯每個語氣嘅 Prompt（存喺 Dexie，隨時重置返預設值）。「自訂每日目標」可以改卡路里、蛋白質、碳水、脂肪、糖上限、纖維下限、鈉上限（留空即係用預設值）。
+7. 結果頁可以改名、改卡路里、剔走唔計嘅嘢、糾正認錯嘅食物、加離線食物庫嘅嘢、收藏呢餐（去新增 sheet「收藏」可以直接加入）。
+
+## iOS v2.0.1 介面改版（2026-11-21）
+
+跟 Kong 嘅 iOS v2.0.1 截圖改版：主頁變今日總覽（sticky week strip + 兩頁 scorecard carousel + static 掣同案底 feed）；深色主題預設；案底 feed 卡片化（相 + roast banner）；統一新增 sheet（影相／上載／搜尋／收藏／打字／運動／飲水／上磅）；streaks + 個人戰績；飲水樽制；進度頁（30 日營養圖 + 身體趨勢 + 熱量赤字）；一日開始時間設定。目標數字唔係 hardcode — 由個人檔案經 Mifflin-St Jeor 計出。一個 responsive 設計兼容摺埋（底部 tab）同打開（右邊 tool band）兩種佈局。
+
+明確唔做：帳號／Discord／優惠碼／Pro／免費配額、Widget、餐點提醒（iOS PWA 唔可以排程本地通知）、Health Connect、條碼掃描。
 
 ## v1.7.0 移植（2026-11-21）
 
@@ -48,8 +57,9 @@ JSON 交畀你自建嘅捷徑寫入 HealthKit。捷徑名喺「設定」→「Ap
 - `src/lib/health.ts` — Apple Health 匯出（iOS 捷徑 URL Scheme + JSON 欄位表）
 - `src/lib/image.ts` — Canvas 壓縮 + 三餐時間推斷
 - `src/lib/vision.ts` — VisionClient（OpenAI-compatible、Structured Outputs、驗證 + repair retry；掃描／糾正／駁斥／標籤）
-- `src/lib/nutrition.ts` — Mifflin-St Jeor BMR/TDEE、每日目標（含糖上限／纖維下限／鈉上限 + 自訂覆寫）
-- `src/pages/` — Scan（影相掃描）、Result（結果編輯／糾正）、History（記錄）、Settings（設定）
+- `src/lib/day.ts` — 一日開始時間（log-day）、星期 strip、streaks 計算
+- `src/lib/nutrition.ts` — Mifflin-St Jeor BMR/TDEE、每日目標（含糖上限／纖維下限／鈉上限 + 自訂覆寫）、BMI、飲水樽制（1 樽 500ml）
+- `src/pages/` — Home（今日總覽）、Scan（影相／標籤／打字）、Result（結果編輯／糾正／收藏）、History（記錄）、Progress（進度）、Settings（設定）、AddSheet（統一新增）
 - 設計文件：`~/workspace/rea/calomei/VISION_API_DESIGN.md`、`CLONE_SPEC.md`
 
 ## 部署
