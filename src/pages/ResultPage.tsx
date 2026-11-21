@@ -150,9 +150,18 @@ export default function ResultPage({
   } | null>(null)
   const [totalEditValue, setTotalEditValue] = useState('')
 
-  // Load components when the entry (or its saved JSON) changes.
+  // The componentsJson this page last loaded from. Only reload when the
+  // SAVED components actually change — a roast-only write (e.g. 駁佢)
+  // must not wipe unsaved edits on screen (the old effect re-ran on any
+  // change to the entry row, resetting items / baseItems / multiplier).
+  const loadedJsonRef = useRef<string | null | undefined>(undefined)
+
+  // Load components when the saved JSON changes.
   useEffect(() => {
     if (entry) {
+      const json = entry.componentsJson ?? null
+      if (json === loadedJsonRef.current) return
+      loadedJsonRef.current = json
       const loaded = componentsFromEntry(entry)
       setItems(loaded)
       setBaseItems(loaded)
@@ -161,8 +170,14 @@ export default function ResultPage({
     }
   }, [entry, savedTick])
 
+  // The list on screen: in-memory edits, or the saved components on first
+  // load. Defined before `totals` so the totals never flash 0 while the
+  // rows already show food.
+  const current = items ?? (entry ? componentsFromEntry(entry) : [])
+  const baseList = baseItems ?? (entry ? componentsFromEntry(entry) : [])
+
   const totals = useMemo(() => {
-    const kept = (items ?? []).filter((i) => !i.isExcluded)
+    const kept = current.filter((i) => !i.isExcluded)
     return {
       calories: kept.reduce((a, i) => a + Math.round(i.calories), 0),
       proteinG: round1(kept.reduce((a, i) => a + i.proteinG, 0)),
@@ -172,7 +187,7 @@ export default function ResultPage({
       fiberG: round1(kept.reduce((a, i) => a + (i.fiberG ?? 0), 0)),
       sodiumMg: Math.round(kept.reduce((a, i) => a + (i.sodiumMg ?? 0), 0)),
     }
-  }, [items])
+  }, [current])
 
   if (!entry) {
     return (
@@ -192,9 +207,6 @@ export default function ResultPage({
 
   // Narrowed once here so closures below see a non-nullable entry.
   const loadedEntry: FoodEntry = entry
-
-  const current = items ?? componentsFromEntry(loadedEntry)
-  const baseList = baseItems ?? componentsFromEntry(loadedEntry)
 
   /** 食材窗改完嘅顯示值 → 除返 multiplier 寫入 base，保持 base × 倍數 = 顯示值。 */
   function toBasePatch(patch: IngredientPatch, m: number): IngredientPatch {
@@ -263,11 +275,18 @@ export default function ResultPage({
     const value = Number(totalEditValue)
     if (!old || old <= 0 || !Number.isFinite(value) || value <= 0) return
     const factor = value / old
+    // Keep the multiplier inside its own 0.1–10 clamp (same bounds as
+    // applyMultiplier): shrink the factor so m * factor stays in range,
+    // otherwise base × multiplier would no longer equal the display.
+    const clampedFactor = Math.min(
+      10 / multiplier,
+      Math.max(0.1 / multiplier, factor),
+    )
     const scaleKept = (c: FoodComponent) =>
-      c.isExcluded ? c : scaleComponent(c, factor)
+      c.isExcluded ? c : scaleComponent(c, clampedFactor)
     setItems((prev) => (prev ?? []).map(scaleKept))
     setBaseItems((prev) => (prev ?? []).map(scaleKept))
-    setMultiplier((m) => m * factor)
+    setMultiplier(multiplier * clampedFactor)
     setTotalEdit(null)
   }
 
@@ -373,7 +392,9 @@ export default function ResultPage({
     openHealthShortcut(name, {
       type: 'meal',
       date: isoDate(loadedEntry.date),
-      name: loadedEntry.name,
+      // The title on screen, not the last-saved one — editing the title
+      // and exporting before 搞掂 used to send the old name with new numbers.
+      name: title.trim() || loadedEntry.name,
       calories: totals.calories,
       protein_g: totals.proteinG,
       carbs_g: totals.carbsG,
@@ -434,9 +455,20 @@ export default function ResultPage({
       setBaseItems(next)
       setMultiplier(1)
       if (!titleEditedRef.current) setTitle(next[0]?.nameZH ?? title)
+      // Write the corrected numbers back in full — the home / records /
+      // progress pages all sum the TOP-LEVEL fields, so leaving them stale
+      // (only componentsJson + calories updated) shows pre-correction
+      // numbers everywhere until 搞掂. Same shape as ScanPage's save.
       await db.food_entries.update(entryId, {
-        componentsJson: JSON.stringify(next),
+        name: next[0]?.nameZH ?? loadedEntry.name,
         calories: result.total_calories,
+        proteinG: round1(next.reduce((a, c) => a + c.proteinG, 0)),
+        carbsG: round1(next.reduce((a, c) => a + c.carbsG, 0)),
+        fatG: round1(next.reduce((a, c) => a + c.fatG, 0)),
+        sugarG: round1(next.reduce((a, c) => a + (c.sugarG ?? 0), 0)),
+        fiberG: round1(next.reduce((a, c) => a + (c.fiberG ?? 0), 0)),
+        sodiumMg: Math.round(next.reduce((a, c) => a + (c.sodiumMg ?? 0), 0)),
+        componentsJson: JSON.stringify(next),
         aiOriginalName: loadedEntry.aiOriginalName ?? loadedEntry.name,
         aiOriginalComponentsJson:
           loadedEntry.aiOriginalComponentsJson ?? loadedEntry.componentsJson ?? null,

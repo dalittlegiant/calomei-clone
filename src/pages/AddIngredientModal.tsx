@@ -16,6 +16,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LocalFoodItem[]>([])
   const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState(false)
   const [manualName, setManualName] = useState('')
   const [manualPortion, setManualPortion] = useState('一份')
   const [manualCalories, setManualCalories] = useState('')
@@ -28,6 +29,7 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
 
   async function onSearch(q: string) {
     setQuery(q)
+    setSearchError(false)
     if (q.trim().length < 1) {
       setResults([])
       return
@@ -35,6 +37,11 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
     setSearching(true)
     try {
       setResults(await searchFoods(q, 12))
+    } catch {
+      // Food-DB load failed (e.g. offline on first load) — say so instead
+      // of the misleading "搵唔到"; loadFoodDb retries on the next search.
+      setSearchError(true)
+      setResults([])
     } finally {
       setSearching(false)
     }
@@ -123,6 +130,11 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
             className="glass-input mt-3"
           />
           {searching && <p className="mt-2 text-sm text-white/40">搵緊…</p>}
+          {searchError && (
+            <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
+              食物庫載入失敗，請檢查網絡再試過。
+            </p>
+          )}
           {results.length > 0 && (
             <ul className="mt-2 divide-y divide-white/10">
               {results.map((food) => (
@@ -152,11 +164,14 @@ export default function AddIngredientModal({ open, onClose, onAdd }: Props) {
               ))}
             </ul>
           )}
-          {query.trim() !== '' && !searching && results.length === 0 && (
-            <p className="mt-3 text-center text-sm text-white/40">
-              搵唔到「{query}」，試下轉去「手動自訂」。
-            </p>
-          )}
+          {query.trim() !== '' &&
+            !searching &&
+            !searchError &&
+            results.length === 0 && (
+              <p className="mt-3 text-center text-sm text-white/40">
+                搵唔到「{query}」，試下轉去「手動自訂」。
+              </p>
+            )}
         </>
       ) : (
         <>

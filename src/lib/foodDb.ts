@@ -29,14 +29,22 @@ export async function loadFoodDb(): Promise<LocalFoodItem[]> {
   if (cache) return cache
   if (loading) return loading
   loading = (async () => {
-    // BASE_URL is '/calomei-clone/' on GitHub Pages, '/' in dev.
-    const base = import.meta.env.BASE_URL
-    const [tfda, china] = await Promise.all([
-      fetch(`${base}data/tfda_foods.json`).then((r) => r.json()),
-      fetch(`${base}data/china_foods.json`).then((r) => r.json()),
-    ])
-    cache = [...(tfda as LocalFoodItem[]), ...(china as LocalFoodItem[])]
-    return cache
+    try {
+      // BASE_URL is '/calomei-clone/' on GitHub Pages, '/' in dev.
+      const base = import.meta.env.BASE_URL
+      const [tfda, china] = await Promise.all([
+        fetch(`${base}data/tfda_foods.json`).then((r) => r.json()),
+        fetch(`${base}data/china_foods.json`).then((r) => r.json()),
+      ])
+      cache = [...(tfda as LocalFoodItem[]), ...(china as LocalFoodItem[])]
+      return cache
+    } catch (err) {
+      // A failed load must not poison the session: reset `loading` so the
+      // next search retries the fetch instead of re-throwing the same
+      // rejected promise forever (e.g. first load happened offline).
+      loading = null
+      throw err
+    }
   })()
   return loading
 }

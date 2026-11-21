@@ -61,8 +61,21 @@ export function openHealthShortcut(
   window.location.href = healthShortcutUrl(shortcutName, payload)
 }
 
+/**
+ * Local ISO timestamp WITH the device's timezone offset, e.g.
+ * `2026-11-22T00:30:00+08:00`. The old version returned UTC (`Z`), so a
+ * meal eaten at 00:30 HKT was stamped the previous day 16:30 UTC — a
+ * Shortcut that reads the string as local time files it on the wrong day.
+ * The offset form parses to the same instant AND reads as local time.
+ */
 export function isoDate(ms: number): string {
-  return new Date(ms).toISOString()
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const offsetMin = -d.getTimezoneOffset()
+  const sign = offsetMin >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMin)
+  const off = `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${off}`
 }
 
 /** Field reference for the Shortcut tutorial (Settings page). */
@@ -74,7 +87,7 @@ export const HEALTH_PAYLOAD_FIELDS: Array<{
     type: 'meal',
     fields: [
       { name: 'type', meaning: '"meal"（固定）' },
-      { name: 'date', meaning: 'ISO 時間，例如 2026-11-21T12:30:00.000Z' },
+      { name: 'date', meaning: 'ISO 時間連時區，例如 2026-11-21T12:30:00+08:00' },
       { name: 'name', meaning: '餐名，例如「叉燒飯」' },
       { name: 'calories', meaning: '卡路里（kcal）' },
       { name: 'protein_g', meaning: '蛋白質（克）' },

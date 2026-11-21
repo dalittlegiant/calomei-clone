@@ -98,6 +98,13 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
 
+/** 'YYYY-MM-DD' log-day key shifted by N days (local calendar). */
+function shiftLogDay(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + days)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
 export default function HomePage({
   profile,
   onOpen,
@@ -114,9 +121,32 @@ export default function HomePage({
   }, [])
 
   const startMin = dayStartMinutes(dayStart)
+  const todayKey = logDayKey(Date.now(), startMin)
+
+  // Feed window: only the latest N log days are loaded (default 30) —
+  // loading every photo data URL at once bloats memory and the DOM after
+  // a few hundred meals. 「載入更多」 extends the window by 30 days.
+  const [feedDays, setFeedDays] = useState(30)
+  const feedCutoffKey = useMemo(
+    () => shiftLogDay(todayKey, -(feedDays - 1)),
+    [todayKey, feedDays],
+  )
+  const feedWindowStartMs = useMemo(() => {
+    const [y, m, d] = feedCutoffKey.split('-').map(Number)
+    return new Date(y, m - 1, d).getTime() + startMin * 60_000
+  }, [feedCutoffKey, startMin])
   const entries = useLiveQuery(
-    () => db.food_entries.orderBy('date').reverse().toArray(),
-    [],
+    () =>
+      db.food_entries
+        .where('date')
+        .aboveOrEqual(feedWindowStartMs)
+        .toArray()
+        .then((rows) => rows.reverse()),
+    [feedWindowStartMs],
+  )
+  const olderCount = useLiveQuery(
+    () => db.food_entries.where('date').below(feedWindowStartMs).count(),
+    [feedWindowStartMs],
   )
   const override = useLiveQuery(
     () => db.nutrition_target_overrides.get('default'),
@@ -126,10 +156,29 @@ export default function HomePage({
   const bmr = Math.round(mifflinBmr(profile))
   const tdee = Math.round(mifflinBmr(profile) * activityFactor(profile.activityLevel))
 
-  const todayStart = todayLogStartMs(startMin)
-  const todayFood = useMemo(
-    () => (entries ?? []).filter((e) => e.date >= todayStart),
-    [entries, todayStart],
+  // The log day on screen: the picked day, or today. EVERY number on this
+  // page (ring, macros, water, exercise) is computed from this day.
+  // Previously the totals were hard-wired to today while only the feed
+  // followed the picker, so picking yesterday showed today's 0s.
+  const viewKey = selectedDay ?? todayKey
+  const viewStart = useMemo(() => {
+    const [y, m, d] = viewKey.split('-').map(Number)
+    return new Date(y, m - 1, d).getTime() + startMin * 60_000
+  }, [viewKey, startMin])
+  const viewEnd = viewStart + 86_400_000
+
+  const dayFood = useMemo(
+    () =>
+      (entries ?? []).filter(
+        (e) =>
+          // Unfinished / failed scans have no numbers yet — they must not
+          // count towards the day's totals (they still show in the feed
+          // as 「分析緊…」).
+          e.scanStatus !== 'scanning' &&
+          e.scanStatus !== 'failed' &&
+          logDayKey(e.date, startMin) === viewKey,
+      ),
+    [entries, viewKey, startMin],
   )
   const totals = useMemo(() => {
     const t = {
@@ -141,7 +190,7 @@ export default function HomePage({
       fiberG: 0,
       sodiumMg: 0,
     }
-    for (const e of todayFood) {
+    for (const e of dayFood) {
       t.calories += e.calories
       t.proteinG += e.proteinG
       t.carbsG += e.carbsG
@@ -151,26 +200,26 @@ export default function HomePage({
       t.sodiumMg += e.sodiumMg ?? 0
     }
     return t
-  }, [todayFood])
+  }, [dayFood])
 
-  const waterToday = useLiveQuery(
-    () => db.water_entries.where('date').aboveOrEqual(todayStart).toArray(),
-    [todayStart],
+  const dayWater = useLiveQuery(
+    () => db.water_entries.where('date').between(viewStart, viewEnd).toArray(),
+    [viewStart, viewEnd],
   )
-  const waterTotal = (waterToday ?? []).reduce((a, w) => a + w.amountML, 0)
+  const waterTotal = (dayWater ?? []).reduce((a, w) => a + w.amountML, 0)
 
-  const exerciseToday = useLiveQuery(
-    () => db.exercise_entries.where('date').aboveOrEqual(todayStart).toArray(),
-    [todayStart],
+  const dayExercise = useLiveQuery(
+    () =>
+      db.exercise_entries.where('date').between(viewStart, viewEnd).toArray(),
+    [viewStart, viewEnd],
   )
-  const exerciseKcal = (exerciseToday ?? []).reduce(
+  const exerciseKcal = (dayExercise ?? []).reduce(
     (a, e) => a + e.caloriesBurned,
     0,
   )
 
   const remaining = target.calories - totals.calories + exerciseKcal
   const weekDays = last7LogDays(startMin)
-  const todayKey = logDayKey(Date.now(), startMin)
   const dayKeysWithEntries = useMemo(
     () => new Set((entries ?? []).map((e) => logDayKey(e.date, startMin))),
     [entries, startMin],
@@ -216,10 +265,14 @@ export default function HomePage({
 
   async function addBottle() {
     const now = Date.now()
+    // Stamp into the day on screen (same time-of-day as now), so the water
+    // total you are looking at moves when you tap +1 樽. Viewing today,
+    // this is exactly `now`.
+    const stamp = viewStart + (now - todayLogStartMs(startMin))
     await db.water_entries.add({
       id: crypto.randomUUID(),
       amountML: BOTTLE_ML,
-      date: now,
+      date: stamp,
       createdAt: now,
     })
   }
@@ -528,6 +581,7 @@ export default function HomePage({
                         <img
                           src={e.imageDataUrl}
                           alt=""
+                          loading="lazy"
                           className="h-20 w-20 shrink-0 rounded-2xl object-cover"
                         />
                       ) : (
@@ -573,6 +627,16 @@ export default function HomePage({
               </div>
             </div>
           ))}
+
+          {!selectedDay && (olderCount ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => setFeedDays((d) => d + 30)}
+              className="glass-subcard mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
+            >
+              載入更多（仲有 {olderCount} 餐）
+            </button>
+          )}
     </div>
   )
 }

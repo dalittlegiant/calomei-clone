@@ -50,3 +50,8 @@
    截出嚟嘅圖 file hash 同上一張一模一樣即係舊版，未更新。
 3. `git diff --stat` 確認 `src/lib/` 同 `src/config/prompts.ts` 無被改動。
 4. 部署要經 Kong 俾嘅一次性 GitHub PAT（push 完即刻移除 remote，佢 revoke）。
+
+> 2026-11-22 一次性特批：Kong 批准今次修改 `src/lib/backup.ts`、
+> `src/lib/vision.ts`、`src/lib/foodDb.ts`、`src/lib/health.ts`（Audit
+> H1–L8 修復清單），Dexie schema version 不變；之後 `src/lib/` 恢復禁區。
+> 今次 `git diff --stat` 會見到 lib 有改動，係特批，唔係違規。

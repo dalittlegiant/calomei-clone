@@ -281,6 +281,7 @@ async function chatCompletion<T>(
   schema: unknown,
   messages: ChatMessage[],
   validate: (x: unknown) => x is T,
+  onProgress?: (message: string) => void,
 ): Promise<T> {
   if (!config.apiKey.trim()) {
     throw new Error('未設定 API Key，請去設定頁輸入。')
@@ -337,6 +338,7 @@ async function chatCompletion<T>(
 
   let attempts = makeAttempts(true)
   let reasoningStripped = false
+  let rateLimitedRetried = false
   let lastError: Error | null = null
   for (let attempt = 0; attempt < attempts.length; attempt++) {
     const controller = new AbortController()
@@ -361,6 +363,7 @@ async function chatCompletion<T>(
           reasoningStripped = true
           attempts = makeAttempts(false)
           lastError = new Error(`${detail}（已移除 reasoning 重試）`)
+          onProgress?.('模型唔接受 reasoning 參數，移除咗再試…')
           attempt--
           continue
         }
@@ -368,6 +371,31 @@ async function chatCompletion<T>(
         // support json_schema — try the json_object fallback once.
         if (res.status === 400 && attempt === 0) {
           lastError = new Error(detail)
+          onProgress?.('模型唔支援嚴格格式，轉用寬鬆格式再試…')
+          continue
+        }
+        // 429 / 5xx: the provider is throttling or down — wait and retry
+        // the SAME response_format once (Retry-After wins, else 2 s,
+        // capped at 10 s). Without this the scan just dies on a busy
+        // server and the user sees a bare rate-limit error.
+        if (
+          (res.status === 429 || res.status >= 500) &&
+          !rateLimitedRetried
+        ) {
+          rateLimitedRetried = true
+          const retryAfter = Number(res.headers.get('retry-after'))
+          const waitMs = Math.min(
+            10_000,
+            Number.isFinite(retryAfter) && retryAfter > 0
+              ? retryAfter * 1000
+              : 2000,
+          )
+          lastError = new Error(`${detail}（${waitMs / 1000} 秒後再試一次）`)
+          onProgress?.(
+            `伺服器忙（HTTP ${res.status}），${waitMs / 1000} 秒後再試…`,
+          )
+          await new Promise((r) => window.setTimeout(r, waitMs))
+          attempt--
           continue
         }
         throw new Error(detail)
@@ -400,6 +428,7 @@ async function chatCompletion<T>(
           lastError = new Error(
             `模型無回傳內容（${detail}），已改用 json_object 重試`,
           )
+          onProgress?.('模型無回傳內容，轉用寬鬆格式再試…')
           continue
         }
         throw new Error(`模型無回傳內容（${detail}）`)
@@ -429,6 +458,7 @@ async function withRepairRetry<T>(
   schema: unknown,
   messages: ChatMessage[],
   validate: (x: unknown) => x is T,
+  onProgress?: (message: string) => void,
 ): Promise<T> {
   try {
     return await run()
@@ -444,7 +474,15 @@ async function withRepairRetry<T>(
           '你上一次回傳嘅 JSON 格式有問題。請只輸出修正後嘅 JSON，符合同一個 schema，唔好加任何其他文字。',
       },
     ]
-    return chatCompletion(config, schemaName, schema, repairMessages, validate)
+    onProgress?.('回覆格式有問題，等模型修正再試…')
+    return chatCompletion(
+      config,
+      schemaName,
+      schema,
+      repairMessages,
+      validate,
+      onProgress,
+    )
   }
 }
 
@@ -452,6 +490,7 @@ export async function scanFood(
   req: ScanFoodRequest,
   config: VisionProviderConfig,
   systemPrompt: string,
+  onProgress?: (message: string) => void,
 ): Promise<FoodScanResult> {
   const contextParts = [`餐類：${req.meal_type}；地區：${req.region}。`]
   if (req.textOnly) {
@@ -494,13 +533,23 @@ export async function scanFood(
         FOOD_SCAN_SCHEMA,
         messages,
         isFoodScanResult,
+        onProgress,
       ),
     config,
     'food_scan',
     FOOD_SCAN_SCHEMA,
     messages,
     isFoodScanResult,
+    onProgress,
   )
+  if (result.food_items.length === 0) {
+    // An empty list is a failed scan, not a 0-kcal meal — the caller must
+    // not save a 'done' entry for it (it would earn a streak day for
+    // nothing) and must show this instead of a blank result page.
+    throw new Error(
+      'AI 搵唔到任何食物，請再影過一張清楚啲，或者打字講低食咗咩。',
+    )
+  }
   return {
     ...result,
     food_items: normalizeItems(result.food_items),
@@ -518,6 +567,7 @@ export async function scanNutritionLabel(
   req: ScanFoodRequest,
   config: VisionProviderConfig,
   systemPrompt: string,
+  onProgress?: (message: string) => void,
 ): Promise<FoodScanResult> {
   const contextParts = [`地區：${req.region}。`]
   if (req.food_description?.trim()) {
@@ -544,13 +594,22 @@ export async function scanNutritionLabel(
         FOOD_SCAN_SCHEMA,
         messages,
         isFoodScanResult,
+        onProgress,
       ),
     config,
     'food_scan',
     FOOD_SCAN_SCHEMA,
     messages,
     isFoodScanResult,
+    onProgress,
   )
+  if (result.food_items.length === 0) {
+    // Same rule as scanFood: an empty list is a failed scan, not a
+    // 0-kcal entry.
+    throw new Error(
+      'AI 喺呢張標籤搵唔到任何食物資料，請再影過一張清楚啲，或者打字補充產品名。',
+    )
+  }
   return {
     ...result,
     food_items: normalizeItems(result.food_items),
@@ -650,5 +709,9 @@ export async function correctFood(
     messages,
     isCorrectionResult,
   )
+  if (result.food_items.length === 0) {
+    // A correction that finds nothing is a failure, not an empty meal.
+    throw new Error('AI 按你講嘅名搵唔到任何食物，請檢查吓個名或者再試過。')
+  }
   return { ...result, food_items: normalizeItems(result.food_items) }
 }

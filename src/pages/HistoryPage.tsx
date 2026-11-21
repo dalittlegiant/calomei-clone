@@ -32,9 +32,32 @@ export default function HistoryPage({ profile, onOpen }: Props) {
   }, [])
 
   const startMin = dayStartMinutes(dayStart)
+  const todayKey = logDayKey(Date.now(), startMin)
+
+  // Feed window: only the latest N log days are loaded (default 30) —
+  // loading every photo data URL at once bloats memory and the DOM after
+  // a few hundred meals. 「載入更多」 extends the window by 30 days.
+  const [feedDays, setFeedDays] = useState(30)
+  const feedCutoffKey = useMemo(
+    () => shiftLogDay(todayKey, -(feedDays - 1)),
+    [todayKey, feedDays],
+  )
+  const feedWindowStartMs = useMemo(() => {
+    const [y, m, d] = feedCutoffKey.split('-').map(Number)
+    return new Date(y, m - 1, d).getTime() + startMin * 60_000
+  }, [feedCutoffKey, startMin])
   const entries = useLiveQuery(
-    () => db.food_entries.orderBy('date').reverse().toArray(),
-    [],
+    () =>
+      db.food_entries
+        .where('date')
+        .aboveOrEqual(feedWindowStartMs)
+        .toArray()
+        .then((rows) => rows.reverse()),
+    [feedWindowStartMs],
+  )
+  const olderCount = useLiveQuery(
+    () => db.food_entries.where('date').below(feedWindowStartMs).count(),
+    [feedWindowStartMs],
   )
   const override = useLiveQuery(
     () => db.nutrition_target_overrides.get('default'),
@@ -206,7 +229,9 @@ export default function HistoryPage({ profile, onOpen }: Props) {
       type: 'weight',
       date: isoDate(w.date),
       weight_kg: w.weightKG,
-      body_fat_percent: bf ? bf.bodyFatPercentage : null,
+      // Omit the key entirely when there is no reading — the doc says
+      // 「無就唔傳」; sending an explicit null is not the same thing.
+      ...(bf ? { body_fat_percent: bf.bodyFatPercentage } : {}),
     })
     flash(setLogMsg, `體重 ${w.weightKG} kg 已交去捷徑「${name}」`)
   }
@@ -473,6 +498,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                   <img
                     src={e.imageDataUrl}
                     alt=""
+                    loading="lazy"
                     className="h-14 w-14 shrink-0 rounded-xl object-cover"
                   />
                 ) : (
@@ -497,6 +523,23 @@ export default function HistoryPage({ profile, onOpen }: Props) {
           </div>
         </div>
       ))}
+
+      {(olderCount ?? 0) > 0 && (
+        <button
+          type="button"
+          onClick={() => setFeedDays((d) => d + 30)}
+          className="glass-subcard mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
+        >
+          載入更多（仲有 {olderCount} 餐）
+        </button>
+      )}
     </div>
   )
+}
+
+/** 'YYYY-MM-DD' log-day key shifted by N days (local calendar). */
+function shiftLogDay(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + days)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }

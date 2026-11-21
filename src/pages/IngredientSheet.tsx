@@ -75,7 +75,9 @@ export default function IngredientSheet({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   function applyScale(nextScale: number) {
-    if (!nextScale || nextScale <= 0) return
+    // Reject non-finite scales outright — a 0 g base used to produce
+    // Infinity here, and 0 * Infinity = NaN for zero nutrients.
+    if (!Number.isFinite(nextScale) || nextScale <= 0) return
     setScale(nextScale)
     setNutrients(scaleNutrients(baseNutrients, nextScale))
   }
@@ -112,9 +114,16 @@ export default function IngredientSheet({
     onSave({
       nameZH: name.trim() || item.nameZH,
       portionDescription:
-        mode === 'grams' && gramsStr.trim() !== ''
-          ? `約${gramsStr.trim()}克`
-          : item.portionDescription,
+        mode === 'grams'
+          ? gramsStr.trim() !== ''
+            ? `約${gramsStr.trim()}克`
+            : item.portionDescription
+          : // Servings mode: the nutrients were rescaled by `scale`, so the
+            // grams must follow — saving the old text (e.g. 150 克 for what
+            // is now 225 g of food) corrupts the next grams-mode edit.
+            baseGrams !== null
+            ? `約${Math.round(baseGrams * scale)}克`
+            : item.portionDescription,
       ...nutrients,
       isExcluded: excluded,
     })

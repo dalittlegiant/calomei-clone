@@ -60,6 +60,7 @@ export default function AddSheet({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<LocalFoodItem[]>([])
   const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState(false)
   const [selectedFood, setSelectedFood] = useState<LocalFoodItem | null>(null)
   const [grams, setGrams] = useState('100')
 
@@ -145,6 +146,7 @@ export default function AddSheet({
   async function onSearch(q: string) {
     setSearchQuery(q)
     setSelectedFood(null)
+    setSearchError(false)
     if (q.trim().length < 1) {
       setSearchResults([])
       return
@@ -152,6 +154,11 @@ export default function AddSheet({
     setSearching(true)
     try {
       setSearchResults(await searchFoods(q, 12))
+    } catch {
+      // Food-DB load failed — say so instead of the misleading "搵唔到";
+      // loadFoodDb retries on the next search.
+      setSearchError(true)
+      setSearchResults([])
     } finally {
       setSearching(false)
     }
@@ -364,6 +371,11 @@ export default function AddSheet({
             {searching && (
               <p className="mt-2 text-sm text-white/40">搵緊…</p>
             )}
+            {searchError && (
+              <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
+                食物庫載入失敗，請檢查網絡再試過。
+              </p>
+            )}
             {selectedFood && (
               <div className="mt-3 rounded-2xl bg-[#FF9F0A]/10 p-3">
                 <p className="font-bold">{selectedFood.name}</p>
@@ -430,11 +442,14 @@ export default function AddSheet({
                 ))}
               </ul>
             )}
-            {searchQuery.trim() && !searching && searchResults.length === 0 && (
-              <p className="mt-3 text-center text-sm text-white/40">
-                食物庫搵唔到，試下打字叫 AI 估啦。
-              </p>
-            )}
+            {searchQuery.trim() &&
+              !searching &&
+              !searchError &&
+              searchResults.length === 0 && (
+                <p className="mt-3 text-center text-sm text-white/40">
+                  食物庫搵唔到，試下打字叫 AI 估啦。
+                </p>
+              )}
           </div>
         )}
 

@@ -10,10 +10,14 @@ export function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
 
-/** 由份量文字解析克數：「約150克」「150g」「150 克」→ 150；解析唔到 → null。 */
+/** 由份量文字解析克數：「約150克」「150g」「150 克」→ 150；解析唔到
+ * 或者 ≤ 0（例如「約0克」）→ null，唔好當 0 克用——0 做除數會生出
+ * Infinity／NaN 再寫入 Dexie。 */
 export function parseGrams(portionDescription: string): number | null {
   const m = portionDescription.match(/(\d+(?:\.\d+)?)\s*(g|克|gram|grams)/i)
-  return m ? Number(m[1]) : null
+  if (!m) return null
+  const v = Number(m[1])
+  return v > 0 ? v : null
 }
 
 export interface Nutrients {

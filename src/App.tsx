@@ -351,8 +351,10 @@ export default function App() {
       </nav>
 
       {/* FAB — narrow screens only; hidden while a meal result is open so it
-          never sits on top of the result page's sticky bottom bar. */}
-      {!currentEntryId && (
+          never sits on top of the result page's sticky bottom bar, and
+          hidden during a scan or on the deficit detail page for the same
+          reason (it used to float over their lower-right content). */}
+      {!currentEntryId && !scanFlow && !deficitOpen && (
         <button
           type="button"
           onClick={() => openSheet('menu')}
@@ -381,7 +383,7 @@ export default function App() {
       />
 
       {toast && (
-        <div className="glass-nav fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-bold whitespace-nowrap text-white md:bottom-8">
+        <div className="glass-nav fixed bottom-24 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-3xl px-4 py-2 text-center text-sm font-bold whitespace-normal break-words text-white md:bottom-8">
           {toast}
         </div>
       )}

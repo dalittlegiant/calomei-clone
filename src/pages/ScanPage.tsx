@@ -39,6 +39,9 @@ export default function ScanPage({
   const [mealType, setMealType] = useState<MealType>(() => inferMealType())
   const [description, setDescription] = useState('')
   const [scanning, setScanning] = useState(false)
+  // Live progress line while the model works (attempts / retries) — the
+  // scan used to show one static 「分析緊…」 for up to ~4 minutes.
+  const [scanProgress, setScanProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
@@ -114,7 +117,12 @@ export default function ScanPage({
       // not repeat the same roast. Label mode does not need it.
       let result
       if (mode === 'label') {
-        result = await scanNutritionLabel(request, visionConfig, tonePrompt)
+        result = await scanNutritionLabel(
+          request,
+          visionConfig,
+          tonePrompt,
+          setScanProgress,
+        )
       } else {
         const startOfToday = new Date()
         startOfToday.setHours(0, 0, 0, 0)
@@ -131,6 +139,7 @@ export default function ScanPage({
           { ...request, previous_roasts: previousRoasts },
           visionConfig,
           tonePrompt,
+          setScanProgress,
         )
       }
       const components = result.food_items.map((item) => ({
@@ -176,6 +185,7 @@ export default function ScanPage({
       setError(e instanceof Error ? e.message : '掃描失敗，請再試一次。')
     } finally {
       setScanning(false)
+      setScanProgress(null)
     }
   }
 
@@ -349,6 +359,11 @@ export default function ScanPage({
         {error && (
           <p className="mt-3 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
             {error}
+          </p>
+        )}
+        {scanning && scanProgress && (
+          <p className="mt-3 text-center text-sm text-white/50">
+            {scanProgress}
           </p>
         )}
         {mode !== 'text' && (

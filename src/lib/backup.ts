@@ -114,6 +114,24 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
   }
   const table = (name: string): unknown[] =>
     Array.isArray(data[name]) ? (data[name] as unknown[]) : []
+  // Whether the file actually carries a table (vs. an old file that predates
+  // it) — see M11 below.
+  const has = (name: string) => Array.isArray(data[name])
+
+  // M5: read the device's current API key BEFORE the transaction clears
+  // settings — an imported vision row with a blank key (the default export
+  // blanks it) must not wipe the key this device is using.
+  let currentApiKey = ''
+  try {
+    const current = await db.settings.get('vision')
+    if (current) {
+      currentApiKey =
+        (JSON.parse(current.value) as VisionProviderConfig).apiKey?.trim() ??
+        ''
+    }
+  } catch {
+    currentApiKey = ''
+  }
 
   await db.transaction(
     'rw',
@@ -131,18 +149,31 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       db.settings,
     ],
     async () => {
+      // M11: only clear a table the backup file actually contains — a v1
+      // file has no water / exercise / body-fat / target tables, so those
+      // keep their current rows instead of being wiped by the clear.
       await Promise.all([
-        db.user_profiles.clear(),
-        db.food_entries.clear(),
-        db.weight_entries.clear(),
-        db.saved_foods.clear(),
-        db.food_collections.clear(),
-        db.food_collection_items.clear(),
-        db.water_entries.clear(),
-        db.exercise_entries.clear(),
-        db.body_fat_entries.clear(),
-        db.nutrition_target_overrides.clear(),
-        db.settings.clear(),
+        has('user_profiles') ? db.user_profiles.clear() : Promise.resolve(),
+        has('food_entries') ? db.food_entries.clear() : Promise.resolve(),
+        has('weight_entries') ? db.weight_entries.clear() : Promise.resolve(),
+        has('saved_foods') ? db.saved_foods.clear() : Promise.resolve(),
+        has('food_collections')
+          ? db.food_collections.clear()
+          : Promise.resolve(),
+        has('food_collection_items')
+          ? db.food_collection_items.clear()
+          : Promise.resolve(),
+        has('water_entries') ? db.water_entries.clear() : Promise.resolve(),
+        has('exercise_entries')
+          ? db.exercise_entries.clear()
+          : Promise.resolve(),
+        has('body_fat_entries')
+          ? db.body_fat_entries.clear()
+          : Promise.resolve(),
+        has('nutrition_target_overrides')
+          ? db.nutrition_target_overrides.clear()
+          : Promise.resolve(),
+        has('settings') ? db.settings.clear() : Promise.resolve(),
       ])
       const profiles = table('user_profiles')
       const entries = table('food_entries')
@@ -201,7 +232,25 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
             typeof db.nutrition_target_overrides.bulkPut
           >[0],
         )
-      if (settings.length > 0) await db.settings.bulkPut(settings)
+      if (settings.length > 0) {
+        // M5: if the imported vision row carries no API key, keep the one
+        // this device already has instead of overwriting it with ''.
+        const visionRow = settings.find((s) => s.key === 'vision')
+        if (visionRow && currentApiKey) {
+          try {
+            const imported = JSON.parse(visionRow.value) as VisionProviderConfig
+            if (!imported.apiKey?.trim()) {
+              visionRow.value = JSON.stringify({
+                ...imported,
+                apiKey: currentApiKey,
+              })
+            }
+          } catch {
+            // Keep the imported row as-is on parse failure.
+          }
+        }
+        await db.settings.bulkPut(settings)
+      }
     },
   )
 

@@ -73,7 +73,7 @@ export function GlassModal({
           {children}
         </div>
       ) : (
-        <div className="glass-card relative w-full max-w-lg p-4">
+        <div className="glass-card relative max-h-[85dvh] w-full max-w-lg overflow-y-auto p-4">
           {children}
         </div>
       )}
