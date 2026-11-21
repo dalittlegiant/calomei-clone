@@ -16,6 +16,8 @@
    555 / 1500 kcal／BMR・TDEE」，右邊保留**發光琥珀橙圓環配火焰 icon**；
    唔准換成幼橫條。下方嚴格保留原本嘅 **2-slide 左右滑動營養卡**
    （第 1 頁蛋白質／碳水／脂肪，第 2 頁糖／纖維／鈉）＋底部暖橙分頁圓點。
+   **每個營養格都有細圓圈進度環**（64px，跟大卡路里圓環同一套 SVG 做法，
+   數值喺圓圈中間；糖／鈉超咗上限變紅）。
 4. **案底卡「Roast 喺頂、食物相＋大數字喺底」**：廣東話 Roast 評語喺卡片
    上半部做主角；下半部左邊食物相片縮圖＋餐類時間＋營養摘要，右邊放大大隻
    `🔥 555 kcal`。
@@ -70,8 +72,10 @@
   配 Lucide 單色線條 SVG Icon＋文字（唔准 Emoji，唔准淨文字）；選中分頁用
   半透明亮玻璃膠囊（`bg-white/15 rounded-full`）包住，Icon 同文字亮起琥珀橙。
   定位 `bottom: max(12px, env(safe-area-inset-bottom))`；主內容底部留 `pb-28`。
-- **展開（寬屏，≥ 768px）**：雙欄 Bento——左欄熱量圓環主卡＋2-slide 營養卡＋
-  兩個大掣；右欄案底列表。右側懸浮液態玻璃垂直導航欄（同款材質，Lucide
+- **展開（寬屏，≥ 768px）**：**單欄，唔准雙欄 Bento**——日期 → 2-slide 板 →
+  兩個大掣 → 案底，同摺埋一樣由上而下排，只係闊啲（`md:max-w-2xl`）。
+  星期列（sticky）同 scorecard 之間要有明顯空隙（容器 `pb-3` ＋ carousel
+  `mt-4`），唔准痴埋。右側懸浮液態玻璃垂直導航欄（同款材質，Lucide
   Icon＋文字，底部獨立發光琥珀玻璃 ＋ 掣）；主內容右側留位避開佢。
 - `index.html` 必須有 `viewport-fit=cover` 同
   `apple-mobile-web-app-status-bar-style="black-translucent"`；
@@ -128,6 +132,8 @@
 `GlassButton`（`variant="amber" | "teal" | "glass"`）、`GlassModal`
 （`variant="sheet" | "dialog"`，backdrop 撳落去關閉）。新頁面／新彈窗
 優先用呢啲元件，唔准另起一套卡片／按鈕／彈窗樣式。
+營養格嘅細圓圈進度環係 `src/pages/HomePage.tsx` 入面嘅 `MiniRing`
+（跟大卡路里火焰圓環同一套 SVG 做法）。
 
 ### 9.4 iPhone 適配
 

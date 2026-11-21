@@ -34,6 +34,57 @@ import {
 } from '../components/icons'
 import { GlassButton } from '../components/ui'
 
+/** 細圓圈進度環 — 跟大卡路里火焰圓環同一套 SVG 做法（細一號，64px）。
+ * 數值喺圓圈中間；超咗上限（糖／鈉）變紅色。 */
+function MiniRing({
+  value,
+  goal,
+  over = false,
+}: {
+  value: number
+  goal: number
+  over?: boolean
+}) {
+  const r = 26
+  const c = 2 * Math.PI * r
+  const frac = goal > 0 ? Math.min(1, Math.max(0, value / goal)) : 0
+  const color = over ? '#F87171' : '#FF9F0A'
+  return (
+    <div className="relative mx-auto h-16 w-16">
+      <svg
+        viewBox="0 0 64 64"
+        className="h-16 w-16 -rotate-90"
+        style={{ filter: `drop-shadow(0 0 6px ${color}55)` }}
+      >
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          strokeWidth="6"
+          className="stroke-white/10"
+        />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - frac)}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span className="text-sm leading-none font-bold tabular-nums">
+          {value}
+        </span>
+      </span>
+    </div>
+  )
+}
+
 interface Props {
   profile: UserProfile
   onOpen: (entryId: string) => void
@@ -179,9 +230,9 @@ export default function HomePage({
   const ringC = 2 * Math.PI * 30
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-3xl md:px-6 md:pb-12">
+    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-2xl md:pb-12">
       {/* Week strip — glass capsule row, sticks under the header. */}
-      <div className="sticky top-[calc(max(12px,env(safe-area-inset-top))+60px)] z-10 pt-3">
+      <div className="sticky top-[calc(max(12px,env(safe-area-inset-top))+60px)] z-10 pt-3 pb-3">
         <div className="glass-nav flex items-center rounded-full px-1.5 py-1.5">
           {weekDays.map((d) => {
             const isToday = d.key === todayKey
@@ -226,14 +277,11 @@ export default function HomePage({
         </div>
       </div>
 
-      <div className="md:mt-2 md:grid md:grid-cols-[1.05fr_1fr] md:items-start md:gap-5">
-        {/* Left column (unfolded): scorecard + actions. */}
-        <div className="min-w-0">
-          {/* Scorecard carousel — exactly 2 pages. */}
+      {/* Scorecard carousel — exactly 2 pages. */}
           <div
             ref={carouselRef}
             onScroll={onCarouselScroll}
-            className="no-scrollbar mt-3 flex snap-x snap-mandatory overflow-x-auto"
+            className="no-scrollbar mt-4 flex snap-x snap-mandatory overflow-x-auto"
           >
             {/* Page 1: calories + macros. */}
             <section className="w-full shrink-0 snap-center px-0.5">
@@ -314,13 +362,11 @@ export default function HomePage({
                     key={m.label}
                     className="glass-subcard p-3 text-center"
                   >
-                    <p className="text-xs text-white/40">{m.label}</p>
-                    <p className="mt-0.5 font-bold whitespace-nowrap">
-                      {m.value}
-                      <span className="text-xs font-normal text-white/40">
-                        /{m.goal}
-                        {m.unit}
-                      </span>
+                    <MiniRing value={m.value} goal={m.goal} />
+                    <p className="mt-1 text-xs text-white/60">{m.label}</p>
+                    <p className="text-[11px] whitespace-nowrap text-white/40">
+                      /{m.goal}
+                      {m.unit}
                     </p>
                   </div>
                 ))}
@@ -377,21 +423,23 @@ export default function HomePage({
 
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {[
-                  { label: '糖', value: round1(totals.sugarG), goal: target.sugarCeilingG, unit: 'g' },
-                  { label: '纖維', value: round1(totals.fiberG), goal: target.fiberFloorG, unit: 'g' },
-                  { label: '鈉', value: Math.round(totals.sodiumMg), goal: target.sodiumCeilingMg, unit: 'mg' },
+                  { label: '糖', value: round1(totals.sugarG), goal: target.sugarCeilingG, unit: 'g', ceiling: true },
+                  { label: '纖維', value: round1(totals.fiberG), goal: target.fiberFloorG, unit: 'g', ceiling: false },
+                  { label: '鈉', value: Math.round(totals.sodiumMg), goal: target.sodiumCeilingMg, unit: 'mg', ceiling: true },
                 ].map((m) => (
                   <div
                     key={m.label}
                     className="glass-subcard p-3 text-center"
                   >
-                    <p className="text-xs text-white/40">{m.label}</p>
-                    <p className="mt-0.5 font-bold whitespace-nowrap">
-                      {m.value}
-                      <span className="text-xs font-normal text-white/40">
-                        /{m.goal}
-                        {m.unit}
-                      </span>
+                    <MiniRing
+                      value={m.value}
+                      goal={m.goal}
+                      over={m.ceiling && m.value > m.goal}
+                    />
+                    <p className="mt-1 text-xs text-white/60">{m.label}</p>
+                    <p className="text-[11px] whitespace-nowrap text-white/40">
+                      /{m.goal}
+                      {m.unit}
                     </p>
                   </div>
                 ))}
@@ -431,11 +479,9 @@ export default function HomePage({
               做咗運動？
             </GlassButton>
           </div>
-        </div>
 
-        {/* Right column (unfolded): 案底 feed. */}
-        <div className="min-w-0">
-          <div className="mt-6 flex items-baseline justify-between md:mt-3">
+          {/* 案底 feed — 跟住 2-slide 板下面，單欄。 */}
+          <div className="mt-6 flex items-baseline justify-between">
             <h2 className="text-lg font-bold">
               案底{selectedDay ? ` · ${dayLabel(selectedDay)}` : ''}
             </h2>
@@ -527,8 +573,6 @@ export default function HomePage({
               </div>
             </div>
           ))}
-        </div>
-      </div>
     </div>
   )
 }
