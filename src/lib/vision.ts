@@ -261,7 +261,13 @@ function isRebutResult(x: unknown): x is RebutResult {
   return isRecord(x) && typeof x.roast_comment === 'string'
 }
 
-/** Fix total_calories to the sum of items when it drifts too far (±10%). */
+/**
+ * Fix total_calories to the sum of items when it drifts too far (±10%).
+ * Food results only (scan / label / correction) — callers must have
+ * validated food_items is an array first. Never call this on a rebut
+ * result: it has no food_items, and reduce on undefined is the crash
+ * behind "undefined is not an object (evaluating 'e.food_items.reduce')".
+ */
 function fixTotal<T extends { food_items: ScannedFoodItem[]; total_calories: number }>(
   result: T,
 ): T {
@@ -435,7 +441,13 @@ async function chatCompletion<T>(
       }
       const parsed: unknown = JSON.parse(text)
       if (!validate(parsed)) throw new Error('回傳 JSON 格式唔啱')
-      return fixTotal(parsed as T & { food_items: ScannedFoodItem[]; total_calories: number }) as T
+      // Do NOT apply fixTotal here: this function is generic over T, and
+      // the rebut result is just { roast_comment } — it has no food_items.
+      // Calling fixTotal unconditionally crashed rebutRoast with
+      // "undefined is not an object (evaluating 'e.food_items.reduce')".
+      // Food paths (scan / label / correction) apply fixTotal themselves,
+      // after their own validators have proven food_items is an array.
+      return parsed as T
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         throw new Error('請求超時（60 秒），請再試一次。')
@@ -542,7 +554,10 @@ export async function scanFood(
     isFoodScanResult,
     onProgress,
   )
-  if (result.food_items.length === 0) {
+  // fixTotal lives here (not in chatCompletion): only food results carry
+  // food_items, and isFoodScanResult has already proven it is an array.
+  const fixed = fixTotal(result)
+  if (fixed.food_items.length === 0) {
     // An empty list is a failed scan, not a 0-kcal meal — the caller must
     // not save a 'done' entry for it (it would earn a streak day for
     // nothing) and must show this instead of a blank result page.
@@ -551,10 +566,10 @@ export async function scanFood(
     )
   }
   return {
-    ...result,
-    food_items: normalizeItems(result.food_items),
+    ...fixed,
+    food_items: normalizeItems(fixed.food_items),
     // v1.7.0: rebuttable defaults to true when the model omits it.
-    rebuttable: result.rebuttable ?? true,
+    rebuttable: fixed.rebuttable ?? true,
   }
 }
 
@@ -603,7 +618,10 @@ export async function scanNutritionLabel(
     isFoodScanResult,
     onProgress,
   )
-  if (result.food_items.length === 0) {
+  // fixTotal lives here (not in chatCompletion): only food results carry
+  // food_items, and isFoodScanResult has already proven it is an array.
+  const fixed = fixTotal(result)
+  if (fixed.food_items.length === 0) {
     // Same rule as scanFood: an empty list is a failed scan, not a
     // 0-kcal entry.
     throw new Error(
@@ -611,9 +629,9 @@ export async function scanNutritionLabel(
     )
   }
   return {
-    ...result,
-    food_items: normalizeItems(result.food_items),
-    rebuttable: result.rebuttable ?? true,
+    ...fixed,
+    food_items: normalizeItems(fixed.food_items),
+    rebuttable: fixed.rebuttable ?? true,
   }
 }
 
@@ -651,6 +669,10 @@ export async function rebutRoast(
       ],
     },
   ]
+  // The rebut result is just { roast_comment } — no food_items, no
+  // total_calories, so fixTotal must never run on it. chatCompletion
+  // returns the validated result untouched; the old unconditional
+  // fixTotal call there is what crashed this path.
   return withRepairRetry(
     () =>
       chatCompletion(
@@ -709,9 +731,12 @@ export async function correctFood(
     messages,
     isCorrectionResult,
   )
-  if (result.food_items.length === 0) {
+  // fixTotal lives here (not in chatCompletion): isCorrectionResult has
+  // already proven food_items is an array.
+  const fixed = fixTotal(result)
+  if (fixed.food_items.length === 0) {
     // A correction that finds nothing is a failure, not an empty meal.
     throw new Error('AI 按你講嘅名搵唔到任何食物，請檢查吓個名或者再試過。')
   }
-  return { ...result, food_items: normalizeItems(result.food_items) }
+  return { ...fixed, food_items: normalizeItems(fixed.food_items) }
 }

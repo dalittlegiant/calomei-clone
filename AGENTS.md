@@ -55,6 +55,11 @@
 > `src/lib/vision.ts`、`src/lib/foodDb.ts`、`src/lib/health.ts`（Audit
 > H1–L8 修復清單），Dexie schema version 不變；之後 `src/lib/` 恢復禁區。
 > 今次 `git diff --stat` 會見到 lib 有改動，係特批，唔係違規。
+>
+> 2026-11-22 第二次一次性特批：Kong 批准今次修改 `src/lib/vision.ts`
+>（駁佢 `rebutRoast` 崩潰修復：`fixTotal` 由通用 `chatCompletion` 搬去
+> 三條食物路徑，`rebutRoast` 只讀 `roast_comment`）；之後 `src/lib/`
+> 恢復禁區。
 
 ## 動效（Motion Polish，2026-11-22）
 
