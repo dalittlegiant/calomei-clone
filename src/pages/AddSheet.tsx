@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../lib/db'
+import { db, type FoodComponent, type SavedFood } from '../lib/db'
 import { inferMealType } from '../lib/image'
 import { BOTTLE_ML } from '../lib/nutrition'
 import { GlassModal } from '../components/ui'
@@ -42,6 +42,29 @@ interface Props {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10
+}
+
+/**
+ * 舊格式收藏（v4 之前，無 sugarG／fiberG／sodiumMg／componentsJson）
+ * 嘅 fallback：將收藏本身砌成單項食材清單，等 ResultPage 睇得返
+ * 一樣食材；糖／纖維／鈉當 0。唔會報錯、唔會留空。
+ */
+function savedFallbackComponentsJson(f: SavedFood): string {
+  const single: FoodComponent = {
+    nameZH: f.name,
+    nameEN: '',
+    portionDescription: f.servingSize,
+    calories: f.calories,
+    proteinG: f.proteinG,
+    carbsG: f.carbsG,
+    fatG: f.fatG,
+    confidence: 1,
+    sugarG: 0,
+    fiberG: 0,
+    sodiumMg: 0,
+    isExcluded: false,
+  }
+  return JSON.stringify([single])
 }
 
 export default function AddSheet({
@@ -120,6 +143,12 @@ export default function AddSheet({
     carbsG: number
     fatG: number
     servingSize: string
+    /** v4：完整 7 項＋食材清單。無就 fallback 去 0／null（舊收藏／
+     * 搜尋結果行呢條路，行為同以前一樣）。 */
+    sugarG?: number
+    fiberG?: number
+    sodiumMg?: number
+    componentsJson?: string | null
   }) {
     const now = Date.now()
     await db.food_entries.add({
@@ -129,13 +158,14 @@ export default function AddSheet({
       proteinG: round1(e.proteinG),
       carbsG: round1(e.carbsG),
       fatG: round1(e.fatG),
-      sugarG: 0,
-      fiberG: 0,
-      sodiumMg: 0,
+      sugarG: round1(e.sugarG ?? 0),
+      fiberG: round1(e.fiberG ?? 0),
+      sodiumMg: Math.round(e.sodiumMg ?? 0),
       servingSize: e.servingSize,
       mealType: inferMealType(),
       date: now,
       createdAt: now,
+      componentsJson: e.componentsJson ?? null,
       scanStatus: 'done',
       rebuttable: false,
     })
@@ -476,6 +506,14 @@ export default function AddSheet({
                         carbsG: f.carbsG,
                         fatG: f.fatG,
                         servingSize: f.servingSize,
+                        // v4：有齊就完整帶入；舊收藏無呢啲欄位就
+                        // fallback（營養 0、食材清單單項），唔會炒車。
+                        sugarG: f.sugarG ?? 0,
+                        fiberG: f.fiberG ?? 0,
+                        sodiumMg: f.sodiumMg ?? 0,
+                        componentsJson:
+                          f.componentsJson ??
+                          savedFallbackComponentsJson(f),
                       })
                     }
                     className="pressable min-w-0 flex-1 text-left"

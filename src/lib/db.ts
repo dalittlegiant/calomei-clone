@@ -100,6 +100,14 @@ export interface SavedFood {
   fatG: number
   servingSize: string
   createdAt: number
+  /** v4 (2026-11-23): 完整 7 項營養素＋逐樣食材。全部可選 — 舊收藏
+   * 無呢啲欄位，讀取嗰陣 fallback（糖／纖維／鈉當 0，食材清單當單項），
+   * 所以係 unindexed props，唔使 data migration。 */
+  sugarG?: number
+  fiberG?: number
+  sodiumMg?: number
+  /** JSON of FoodComponent[]（同 food_entries.componentsJson 同一格式）。 */
+  componentsJson?: string
 }
 
 export interface FoodCollection {
@@ -202,6 +210,132 @@ export interface Setting {
   value: string
 }
 
+// ---- Meal Planner (2026-11-23, v3) ----
+
+export type GroceryCategory =
+  | '肉類／海鮮'
+  | '蔬菜'
+  | '雪櫃凍品'
+  | '乾貨／調味'
+  | '其他'
+
+export const GROCERY_CATEGORIES: GroceryCategory[] = [
+  '肉類／海鮮',
+  '蔬菜',
+  '雪櫃凍品',
+  '乾貨／調味',
+  '其他',
+]
+
+export interface RecipeIngredient {
+  name: string
+  /** 份量數字（成個食譜、即 servings 人份嘅總量；每份 = 總量 ÷ servings）。 */
+  amount: number
+  unit: string
+  /** 克數（成個食譜總量，有就填；無就 null）。 */
+  grams: number | null
+  category: GroceryCategory
+  /** 該食材喺成個食譜嘅卡路里＋營養（加埋 ÷ servings ≈ 每份總數）。 */
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  sugarG: number
+  fiberG: number
+  sodiumMg: number
+}
+
+export interface RecipeStep {
+  text: string
+  /** 呢一步會用到嘅食材名（對應 ingredients[].name）。 */
+  ingredients: string[]
+  /** 計時分鐘數；0 = 唔使計時。 */
+  timerMinutes: number
+}
+
+export interface Recipe {
+  id: string
+  name: string
+  /** 每份份量人數（食譜本身幾人份）。 */
+  servings: number
+  prepMinutes: number
+  cookMinutes: number
+  /** 每份營養。 */
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  sugarG: number
+  fiberG: number
+  sodiumMg: number
+  ingredients: RecipeIngredient[]
+  steps: RecipeStep[]
+  /** 共用食材小標籤（例如「同排骨共用蒜頭」由 UI 計出；呢度存 AI 建議嘅標籤）。 */
+  sharedTags: string[]
+  isFavorite: boolean
+  /** 'ai' | 'mock' | 'custom' */
+  source: string
+  createdAt: number
+}
+
+export interface MealPlanItem {
+  id: string
+  recipeId: string
+  /** 計劃煮幾份。 */
+  servings: number
+  status: 'planned' | 'cooking' | 'done'
+  createdAt: number
+}
+
+export type GroceryStatus = 'have' | 'to_buy' | 'bought'
+
+export interface GroceryItem {
+  id: string
+  name: string
+  amount: number
+  unit: string
+  grams: number | null
+  category: GroceryCategory
+  status: GroceryStatus
+  /** 來源菜式名。 */
+  sources: string[]
+  createdAt: number
+}
+
+export interface CookingPrefs {
+  tools: string[]
+  style: string
+  avoid: string
+  defaultServings: number
+  defaultMeals: number
+}
+
+export const COOKING_TOOLS = [
+  '平底鑊',
+  '氣炸鍋',
+  '微波爐／叮菜盒',
+  '蒸爐',
+  '電飯煲',
+]
+
+export const COOKING_STYLES = [
+  '減脂高蛋白',
+  '少油清淡',
+  '工作日帶飯',
+  '快手 15 分鐘',
+  '家常慢煮',
+]
+
+export function defaultCookingPrefs(): CookingPrefs {
+  return {
+    tools: ['平底鑊', '蒸爐'],
+    style: '減脂高蛋白',
+    avoid: '',
+    defaultServings: 2,
+    defaultMeals: 3,
+  }
+}
+
 export type VisionProvider = 'openrouter' | 'openai' | 'gemini'
 
 export interface VisionProviderConfig {
@@ -286,6 +420,9 @@ class CaLoMeiDb extends Dexie {
   body_fat_entries!: EntityTable<BodyFatEntry, 'id'>
   nutrition_target_overrides!: EntityTable<NutritionTargetOverride, 'id'>
   settings!: EntityTable<Setting, 'key'>
+  recipes!: EntityTable<Recipe, 'id'>
+  meal_plans!: EntityTable<MealPlanItem, 'id'>
+  grocery_items!: EntityTable<GroceryItem, 'id'>
 
   constructor() {
     super('calomei')
@@ -314,6 +451,46 @@ class CaLoMeiDb extends Dexie {
       body_fat_entries: 'id, date',
       nutrition_target_overrides: 'id, effectiveFrom',
       settings: 'key',
+    })
+    // v3 (2026-11-23, Meal Planner): 3 new tables only — old tables
+    // untouched, so v2 data opens as-is. All new-table queries must use
+    // indexed fields only (2026-11-21 black-screen lesson).
+    this.version(3).stores({
+      user_profiles: 'id',
+      food_entries: 'id, date, mealType, createdAt',
+      weight_entries: 'id, date',
+      saved_foods: 'id',
+      food_collections: 'id',
+      food_collection_items: 'id, collectionId',
+      water_entries: 'id, date',
+      exercise_entries: 'id, date',
+      body_fat_entries: 'id, date',
+      nutrition_target_overrides: 'id, effectiveFrom',
+      settings: 'key',
+      recipes: 'id, createdAt, isFavorite',
+      meal_plans: 'id, recipeId, status',
+      grocery_items: 'id, category, status, createdAt',
+    })
+    // v4 (2026-11-23, SavedFood 完整營養素)：stores 同 v3 一模一樣，只係
+    // 版本號＋1 — SavedFood 新加嘅 sugarG／fiberG／sodiumMg／
+    // componentsJson 全部係 unindexed 可選 props，舊行唔使 migration，
+    // 讀取嗰陣 fallback（見 AddSheet／ResultPage）；Dexie 升版唔會清資料。
+    // version(4).stores() 必須列出 FULL schema，唔係淨係 delta。
+    this.version(4).stores({
+      user_profiles: 'id',
+      food_entries: 'id, date, mealType, createdAt',
+      weight_entries: 'id, date',
+      saved_foods: 'id',
+      food_collections: 'id',
+      food_collection_items: 'id, collectionId',
+      water_entries: 'id, date',
+      exercise_entries: 'id, date',
+      body_fat_entries: 'id, date',
+      nutrition_target_overrides: 'id, effectiveFrom',
+      settings: 'key',
+      recipes: 'id, createdAt, isFavorite',
+      meal_plans: 'id, recipeId, status',
+      grocery_items: 'id, category, status, createdAt',
     })
   }
 }
@@ -418,4 +595,18 @@ export async function setTargetOverride(
   }
   await db.nutrition_target_overrides.put(next)
   return next
+}
+
+/** Cooking prefs (Meal Planner, v3) — stored in `settings` under
+ * 'cooking_prefs', merged over defaults so old/partial rows stay valid. */
+export async function getCookingPrefs(): Promise<CookingPrefs> {
+  const stored = await getSetting<CookingPrefs>(
+    'cooking_prefs',
+    defaultCookingPrefs(),
+  )
+  return { ...defaultCookingPrefs(), ...stored }
+}
+
+export async function setCookingPrefs(prefs: CookingPrefs): Promise<void> {
+  await setSetting('cooking_prefs', prefs)
 }

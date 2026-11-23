@@ -369,6 +369,9 @@ export default function ResultPage({
     const kept = current.filter((i) => !i.isExcluded)
     if (kept.length === 0) return
     const now = Date.now()
+    // v4 (2026-11-23, Audit M4)：每樣食材存齊 7 項營養素＋
+    // componentsJson（單項陣列）。current 已經係畫面顯示緊嘅數值
+    // （份數縮放／手動微調後），所以寫入嘅就係顯示值，唔係未縮放嘅 base。
     for (const item of kept) {
       await db.saved_foods.add({
         id: crypto.randomUUID(),
@@ -377,6 +380,10 @@ export default function ResultPage({
         proteinG: item.proteinG,
         carbsG: item.carbsG,
         fatG: item.fatG,
+        sugarG: round1(item.sugarG ?? 0),
+        fiberG: round1(item.fiberG ?? 0),
+        sodiumMg: Math.round(item.sodiumMg ?? 0),
+        componentsJson: JSON.stringify([item]),
         servingSize: item.portionDescription,
         createdAt: now,
       })

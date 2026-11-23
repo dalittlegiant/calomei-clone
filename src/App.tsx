@@ -15,6 +15,7 @@ import { getToneInfo, TONES } from './config/prompts'
 import { computeStreaks, dayStartMinutes, getDayStart } from './lib/day'
 import {
   BowlIcon,
+  ChefHatIcon,
   ChevronDownIcon,
   HomeIcon,
   PlusIcon,
@@ -29,9 +30,10 @@ import SettingsPage from './pages/SettingsPage'
 import HomePage from './pages/HomePage'
 import ProgressPage from './pages/ProgressPage'
 import DeficitDetailPage from './pages/DeficitDetailPage'
+import MealPlannerPage from './pages/MealPlannerPage'
 import AddSheet, { type SheetView } from './pages/AddSheet'
 
-type Tab = 'home' | 'records' | 'progress' | 'settings'
+type Tab = 'home' | 'records' | 'meal' | 'progress' | 'settings'
 
 interface ScanFlow {
   mode: 'food' | 'label' | 'text'
@@ -165,7 +167,7 @@ export default function App() {
 
       <div className="relative md:pr-28">
         {/* Open header — no pill frame, just two independent glass capsules. */}
-        <header className="sticky top-0 z-30 bg-[#0A0A0C]/60 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 bg-[#0A0A0C]/85 backdrop-blur-xl">
           <div className="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 md:max-w-3xl md:px-6">
             {inDetail ? (
               <button
@@ -235,6 +237,14 @@ export default function App() {
               </span>
             </span>
           </div>
+          {/* 底部柔和漸變遮罩：內容碌上嚟時唔會穿透重疊標題——暖黑由 85%
+              淡出到透明，靜態遮罩，唔用動畫（DESIGN.md §12 禁動畫化
+              backdrop-filter）。喺 header 入面，唔會遮住語氣下拉選單
+              （選單 z-50，喺遮罩上面）。 */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 -bottom-4 h-4 bg-[linear-gradient(180deg,rgba(10,10,12,0.85),rgba(10,10,12,0))]"
+          />
         </header>
 
         <div className="flex flex-1">
@@ -281,6 +291,17 @@ export default function App() {
               />
             ) : tab === 'records' ? (
               <HistoryPage profile={profile} onOpen={setCurrentEntryId} />
+            ) : tab === 'meal' ? (
+              <MealPlannerPage
+                profile={profile}
+                visionConfig={vision}
+                tonePrompt={tonePrompt}
+                onLogged={(id) => {
+                  setTab('records')
+                  setCurrentEntryId(id)
+                }}
+                onToast={showToast}
+              />
             ) : tab === 'progress' ? (
               deficitOpen ? (
                 <DeficitDetailPage
@@ -322,6 +343,12 @@ export default function App() {
           onClick={() => goTab('records')}
         />
         <RailButton
+          active={tab === 'meal'}
+          label="煮飯"
+          icon={<ChefHatIcon size={20} />}
+          onClick={() => goTab('meal')}
+        />
+        <RailButton
           active={tab === 'progress'}
           label="進度"
           icon={<ProgressIcon size={20} />}
@@ -359,6 +386,12 @@ export default function App() {
             onClick={() => goTab('records')}
           />
           <NavButton
+            active={tab === 'meal'}
+            label="煮飯"
+            icon={<ChefHatIcon size={20} />}
+            onClick={() => goTab('meal')}
+          />
+          <NavButton
             active={tab === 'progress'}
             label="進度"
             icon={<ProgressIcon size={20} />}
@@ -376,8 +409,10 @@ export default function App() {
       {/* FAB — narrow screens only; hidden while a meal result is open so it
           never sits on top of the result page's sticky bottom bar, and
           hidden during a scan or on the deficit detail page for the same
-          reason (it used to float over their lower-right content). */}
-      {!currentEntryId && !scanFlow && !deficitOpen && (
+          reason (it used to float over their lower-right content). Also
+          hidden on the meal-planner tab, where the floating grocery CTA
+          sits in the same corner. */}
+      {!currentEntryId && !scanFlow && !deficitOpen && tab !== 'meal' && (
         <button
           type="button"
           onClick={() => openSheet('menu')}
@@ -430,7 +465,7 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
-      className={`pressable relative flex min-w-[64px] flex-col items-center gap-0.5 rounded-full px-3.5 py-2 text-[11px] font-bold whitespace-nowrap transition-colors ${
+      className={`pressable relative flex min-w-[60px] flex-col items-center gap-0.5 rounded-full px-2.5 py-2 text-[11px] font-bold whitespace-nowrap transition-colors ${
         active ? 'text-[#FF9F0A]' : 'text-white/50'
       }`}
     >
