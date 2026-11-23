@@ -87,6 +87,15 @@
 > fallback 糖／纖維／鈉 0＋單項食材清單）。`prompts.ts`／`vision.ts`／
 > `foodDb.ts`／`health.ts` 今次無郁，之後 `src/lib/` 恢復禁區。
 
+## 主頁捲動（2026-11-23，Kong 定案）
+
+- 主頁頂部 header（`App.tsx`）同日期列（`HomePage.tsx` week strip）**刻意
+  static**：隨頁面碌走，唔再 pinned，唔准加返 `sticky`／`fixed`。
+- Header 本身帶 `pt-[max(env(safe-area-inset-top),12px)]`，等佢啱啱坐喺 iOS
+  狀態欄下面，上面唔留大片黑空位；根容器 `min-h-dvh w-full`。
+- 底部浮動導航（摺埋底部 pill／展開右欄）同 ＋ FAB 繼續 `fixed`，唔郁。
+  ResultPage／MealPlannerPage 嘅底部 sticky bar 唔關主頁事，唔郁。
+
 ## 動效（Motion Polish，2026-11-22）
 
 - 套件：`motion`（`motion/react`）。共用規範唯一真相來源係

@@ -81,8 +81,8 @@
   定位 `bottom: max(12px, env(safe-area-inset-bottom))`；主內容底部留 `pb-28`。
 - **展開（寬屏，≥ 768px）**：**單欄，唔准雙欄 Bento**——日期 → 2-slide 板 →
   兩個大掣 → 案底，同摺埋一樣由上而下排，只係闊啲（`md:max-w-2xl`）。
-  星期列（sticky）同 scorecard 之間要有明顯空隙（容器 `pb-3` ＋ carousel
-  `mt-4`），唔准痴埋。右側懸浮液態玻璃垂直導航欄（同款材質，Lucide
+  星期列（static，隨頁面碌走，唔再 sticky）同 scorecard 之間要有明顯空隙
+  （容器 `pb-3` ＋ carousel `mt-4`），唔准痴埋。右側懸浮液態玻璃垂直導航欄（同款材質，Lucide
   Icon＋文字，底部獨立發光琥珀玻璃 ＋ 掣）；主內容右側留位避開佢。
 - `index.html` 必須有 `viewport-fit=cover` 同
   `apple-mobile-web-app-status-bar-style="black-translucent"`；

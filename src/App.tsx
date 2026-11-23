@@ -150,7 +150,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="relative min-h-dvh text-white tabular-nums">
+    <div className="relative min-h-dvh w-full text-white tabular-nums">
       {/* Fixed warm-charcoal background + ambient glows (see DESIGN.md §2). */}
       <div
         aria-hidden
@@ -166,9 +166,13 @@ export default function App() {
       />
 
       <div className="relative md:pr-28">
-        {/* Open header — no pill frame, just two independent glass capsules. */}
-        <header className="sticky top-0 z-30 bg-[#0A0A0C]/85 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 md:max-w-3xl md:px-6">
+        {/* Open header — no pill frame, just two independent glass capsules.
+            Static (2026-11-23): scrolls away with the page instead of
+            staying pinned. The safe-area top padding lives on the header
+            itself so it sits just below the iOS status bar with no extra
+            void above it. */}
+        <header className="bg-[#0A0A0C]/85 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-xl">
+          <div className="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 pb-3 md:max-w-3xl md:px-6">
             {inDetail ? (
               <button
                 type="button"
@@ -237,14 +241,6 @@ export default function App() {
               </span>
             </span>
           </div>
-          {/* 底部柔和漸變遮罩：內容碌上嚟時唔會穿透重疊標題——暖黑由 85%
-              淡出到透明，靜態遮罩，唔用動畫（DESIGN.md §12 禁動畫化
-              backdrop-filter）。喺 header 入面，唔會遮住語氣下拉選單
-              （選單 z-50，喺遮罩上面）。 */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 -bottom-4 h-4 bg-[linear-gradient(180deg,rgba(10,10,12,0.85),rgba(10,10,12,0))]"
-          />
         </header>
 
         <div className="flex flex-1">

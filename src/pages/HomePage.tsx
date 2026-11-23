@@ -1,7 +1,7 @@
 // Home — 今日總覽，暖黑液態玻璃風（見 DESIGN.md v2）
 // 還原原本嗰版嘅結構：火焰圓環主卡、2-slide 營養卡、Roast 喺頂嘅案底卡、原裝文案。
 // 只升級材質（暖黑玻璃＋著色玻璃掣）同導航，唔改排版靈魂。
-// - Week strip：玻璃膠囊列，sticky 喺 header 下面
+// - Week strip：玻璃膠囊列，static，隨頁面碌走（2026-11-23 唔再 sticky）
 // - Scorecard：橫向滑動 carousel，得兩頁
 //   第 1 頁：卡路里卡（活動量＋仲剩＋已食／目標＋BMR/TDEE＋火焰圓環）+ 三大營養素
 //   第 2 頁：飲水卡（樽制）+ 糖 / 纖維 / 鈉
@@ -289,8 +289,9 @@ export default function HomePage({
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-2xl md:pb-12">
-      {/* Week strip — glass capsule row, sticks under the header. */}
-      <div className="sticky top-[calc(max(12px,env(safe-area-inset-top))+60px)] z-10 pt-3 pb-3">
+      {/* Week strip — glass capsule row, static: scrolls away with the
+          page (2026-11-23, no longer sticky under the header). */}
+      <div className="pt-3 pb-3">
         <div className="glass-nav flex items-center rounded-full px-1.5 py-1.5">
           {weekDays.map((d) => {
             const isToday = d.key === todayKey
