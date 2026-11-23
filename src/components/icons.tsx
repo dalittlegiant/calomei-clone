@@ -204,3 +204,68 @@ export function RotateCcwIcon({ size = 20, className }: { size?: number; classNa
     </Svg>
   )
 }
+
+/** Lucide chef-hat — Meal Planner 「煮飯」分頁。 */
+export function ChefHatIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z" />
+      <path d="M6 17h12" />
+    </Svg>
+  )
+}
+
+/** Lucide timer — 下廚計時。 */
+export function TimerIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <Svg size={size} className={className}>
+      <line x1="10" x2="14" y1="2" y2="2" />
+      <line x1="12" x2="15" y1="14" y2="11" />
+      <circle cx="12" cy="14" r="8" />
+    </Svg>
+  )
+}
+
+/** Lucide volume-2 — 廣東話朗讀。 */
+export function VolumeIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </Svg>
+  )
+}
+
+/** Lucide shopping-basket — 買餸。 */
+export function ShoppingBagIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="m5 11 4-7" />
+      <path d="m19 11-4-7" />
+      <path d="M2 11h20" />
+      <path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4" />
+      <path d="m9 11 1 9" />
+      <path d="m15 11-1 9" />
+    </Svg>
+  )
+}
+
+/** Lucide check — 圓形剔格用。 */
+export function CheckIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <Svg size={size} className={className}>
+      <polyline points="20 6 9 17 4 12" />
+    </Svg>
+  )
+}
+
+/** Lucide clock — 烹調時間。 */
+export function ClockIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <Svg size={size} className={className}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </Svg>
+  )
+}

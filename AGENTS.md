@@ -66,6 +66,27 @@
 > 數，份量同營養按總件數計 — 茶葉蛋 2 隻只計 1 隻嘅教訓）；之後
 > `src/config/prompts.ts` 恢復禁區。
 
+> 2026-11-23 一次性特批（Meal Planner）：Kong 批准今次修改
+> `src/lib/db.ts`（Dexie v3，只加 recipes／meal_plans／grocery_items
+> 三表＋settings cooking_prefs，舊表零改動）、`src/lib/backup.ts`
+>（備份 v3，包埋新表；匯入舊版 v2 備份唔清新表），以及新增
+> `src/lib/mealPlanner.ts`（AI 食譜生成＋買餸合併＋4 款 mock 食譜）。
+> `prompts.ts`／`vision.ts`／其餘 `src/lib/` 檔案今次無郁，之後
+> `src/lib/` 恢復禁區。份量語義（全站統一）：食材份量／營養係成個
+> 食譜（servings 人份）嘅總量，每份 = 總量 ÷ servings；買餸合併、
+> 下廚材料、Log 寫入全部用同一條數，唔准各自一套。
+>
+> 2026-11-23 一次性特批（Dexie v4，SavedFood 完整營養素）：Kong
+> 批准今次修改 `src/lib/db.ts`（Dexie v4：stores 同 v3 一模一樣，只係
+> 版本號＋1；SavedFood 加可選 sugarG／fiberG／sodiumMg／
+> componentsJson，舊行唔使 migration）同 `src/lib/backup.ts`（備份 v4，
+> 包埋新欄位；匯入舊版 v2／v3 備份唔報錯唔清資料），以及
+> `src/pages/MealPlannerPage.tsx`（存入收藏存齊 7 項＋componentsJson）、
+> `src/pages/ResultPage.tsx`（「收藏呢餐」補齊 7 項＋componentsJson，
+> Audit M4）、`src/pages/AddSheet.tsx`（由收藏記餐完整還原，舊收藏
+> fallback 糖／纖維／鈉 0＋單項食材清單）。`prompts.ts`／`vision.ts`／
+> `foodDb.ts`／`health.ts` 今次無郁，之後 `src/lib/` 恢復禁區。
+
 ## 動效（Motion Polish，2026-11-22）
 
 - 套件：`motion`（`motion/react`）。共用規範唯一真相來源係

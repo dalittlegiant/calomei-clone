@@ -7,7 +7,7 @@ import { db, type VisionProviderConfig } from './db'
 
 export interface BackupData {
   app: 'calomei-clone'
-  backupVersion: 2
+  backupVersion: 4
   exportedAt: string
   user_profiles: unknown[]
   food_entries: unknown[]
@@ -20,6 +20,10 @@ export interface BackupData {
   exercise_entries: unknown[]
   body_fat_entries: unknown[]
   nutrition_target_overrides: unknown[]
+  /** v3 (2026-11-23): Meal Planner tables. */
+  recipes: unknown[]
+  meal_plans: unknown[]
+  grocery_items: unknown[]
   settings: Array<{ key: string; value: string }>
 }
 
@@ -41,6 +45,9 @@ export async function exportBackup(
     exercise,
     bodyFat,
     targets,
+    recipes,
+    mealPlans,
+    groceryItems,
     settings,
   ] = await Promise.all([
     db.user_profiles.toArray(),
@@ -53,6 +60,9 @@ export async function exportBackup(
     db.exercise_entries.toArray(),
     db.body_fat_entries.toArray(),
     db.nutrition_target_overrides.toArray(),
+    db.recipes.toArray(),
+    db.meal_plans.toArray(),
+    db.grocery_items.toArray(),
     db.settings.toArray(),
   ])
 
@@ -73,7 +83,7 @@ export async function exportBackup(
 
   return {
     app: 'calomei-clone',
-    backupVersion: 2,
+    backupVersion: 4,
     exportedAt: new Date().toISOString(),
     user_profiles: profiles,
     food_entries: entries,
@@ -85,6 +95,9 @@ export async function exportBackup(
     exercise_entries: exercise,
     body_fat_entries: bodyFat,
     nutrition_target_overrides: targets,
+    recipes,
+    meal_plans: mealPlans,
+    grocery_items: groceryItems,
     settings: safeSettings,
   }
 }
@@ -101,6 +114,9 @@ export interface ImportResult {
     exercise: number
     bodyFat: number
     targets: number
+    recipes: number
+    mealPlans: number
+    groceryItems: number
   }
   vision: VisionProviderConfig | null
 }
@@ -146,12 +162,17 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       db.exercise_entries,
       db.body_fat_entries,
       db.nutrition_target_overrides,
+      db.recipes,
+      db.meal_plans,
+      db.grocery_items,
       db.settings,
     ],
     async () => {
       // M11: only clear a table the backup file actually contains — a v1
       // file has no water / exercise / body-fat / target tables, so those
       // keep their current rows instead of being wiped by the clear.
+      // Same rule for v3: a v2 file has no recipes / meal_plans /
+      // grocery_items — importing it must NOT wipe the current meal plan.
       await Promise.all([
         has('user_profiles') ? db.user_profiles.clear() : Promise.resolve(),
         has('food_entries') ? db.food_entries.clear() : Promise.resolve(),
@@ -173,6 +194,11 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
         has('nutrition_target_overrides')
           ? db.nutrition_target_overrides.clear()
           : Promise.resolve(),
+        has('recipes') ? db.recipes.clear() : Promise.resolve(),
+        has('meal_plans') ? db.meal_plans.clear() : Promise.resolve(),
+        has('grocery_items')
+          ? db.grocery_items.clear()
+          : Promise.resolve(),
         has('settings') ? db.settings.clear() : Promise.resolve(),
       ])
       const profiles = table('user_profiles')
@@ -185,6 +211,9 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       const exercise = table('exercise_entries')
       const bodyFat = table('body_fat_entries')
       const targets = table('nutrition_target_overrides')
+      const recipes = table('recipes')
+      const mealPlans = table('meal_plans')
+      const groceryItems = table('grocery_items')
       const settings = table('settings') as Array<{
         key: string
         value: string
@@ -202,6 +231,10 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
           weights as Parameters<typeof db.weight_entries.bulkPut>[0],
         )
       if (saved.length > 0)
+        // v4 (2026-11-23): saved_foods 行可能帶 sugarG／fiberG／
+        // sodiumMg／componentsJson；v2／v3 舊備份嘅行無呢 4 欄，
+        // bulkPut 原樣寫入就得 — 讀取嗰陣 fallback（見 AddSheet／
+        // ResultPage），唔使喺度補欄位，唔會報錯亦唔會清資料。
         await db.saved_foods.bulkPut(
           saved as Parameters<typeof db.saved_foods.bulkPut>[0],
         )
@@ -231,6 +264,20 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
           targets as Parameters<
             typeof db.nutrition_target_overrides.bulkPut
           >[0],
+        )
+      // v2 backup files lack these tables — table() returns [] for them,
+      // and the M11 has() guard above keeps the current rows.
+      if (recipes.length > 0)
+        await db.recipes.bulkPut(
+          recipes as Parameters<typeof db.recipes.bulkPut>[0],
+        )
+      if (mealPlans.length > 0)
+        await db.meal_plans.bulkPut(
+          mealPlans as Parameters<typeof db.meal_plans.bulkPut>[0],
+        )
+      if (groceryItems.length > 0)
+        await db.grocery_items.bulkPut(
+          groceryItems as Parameters<typeof db.grocery_items.bulkPut>[0],
         )
       if (settings.length > 0) {
         // M5: if the imported vision row carries no API key, keep the one
@@ -276,6 +323,9 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       exercise: table('exercise_entries').length,
       bodyFat: table('body_fat_entries').length,
       targets: table('nutrition_target_overrides').length,
+      recipes: table('recipes').length,
+      mealPlans: table('meal_plans').length,
+      groceryItems: table('grocery_items').length,
     },
     vision,
   }
