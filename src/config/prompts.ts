@@ -22,7 +22,7 @@ const SHARED_OUTPUT_RULES = `輸出：只可以係一個 JSON，符合 food_scan
 
 const SHARED_TASK = `任務：睇住張相，認出入面全部食物，估份量、卡路里同蛋白質／碳水／脂肪，再加埋糖／纖維／鈉，最後寫一句 roast comment。`
 
-const SHARED_FOOD_RULES = `食物名用香港廣東話叫法（例如叉燒飯、凍檸茶、菜心，唔好用書面語／普通話名）；name_en 係簡單英文名。份量要估實際食咗嘅份量（唔係成碟上枱嘅份量），portion_description 用廣東話寫，例如「一碟約400克」、「一杯約500ml」。卡路里同三大營養素按食物本身估，唔好求其填 0；唔肯定就將 confidence 調低，唔好扮肯定。糖／纖維／鈉都要估：sugar_g 係糖（克，唔包代糖）、fiber_g 係膳食纖維（克）、sodium_mg 係鈉（毫克，唔係鹽嘅克數；鹽 1 克 ≈ 鈉 400 毫克）；估唔到就填合理估值，唔好填 0。total_calories = 各項 estimated_calories 總和。roast_comment 一至兩句，用返該語氣講。`
+const SHARED_FOOD_RULES = `食物名用香港廣東話叫法（例如叉燒飯、凍檸茶、菜心，唔好用書面語／普通話名）；name_en 係簡單英文名。份量要估實際食咗嘅份量（唔係成碟上枱嘅份量），portion_description 用廣東話寫，例如「一碟約400克」、「一杯約500ml」。同款食物出現多件（例如兩隻蛋、三件雞翼），要逐件數清楚，portion_description 寫明件數（例如「兩隻共約100克」），卡路里同營養按總件數計，唔好只當一件。卡路里同三大營養素按食物本身估，唔好求其填 0；唔肯定就將 confidence 調低，唔好扮肯定。糖／纖維／鈉都要估：sugar_g 係糖（克，唔包代糖）、fiber_g 係膳食纖維（克）、sodium_mg 係鈉（毫克，唔係鹽嘅克數；鹽 1 克 ≈ 鈉 400 毫克）；估唔到就填合理估值，唔好填 0。total_calories = 各項 estimated_calories 總和。roast_comment 一至兩句，用返該語氣講。`
 
 export const TONES: ToneInfo[] = [
   {

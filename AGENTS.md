@@ -60,6 +60,11 @@
 >（駁佢 `rebutRoast` 崩潰修復：`fixTotal` 由通用 `chatCompletion` 搬去
 > 三條食物路徑，`rebutRoast` 只讀 `roast_comment`）；之後 `src/lib/`
 > 恢復禁區。
+>
+> 2026-11-23 一次性特批：Kong 批准今次修改 `src/config/prompts.ts`
+>（掃描 prompt `SHARED_FOOD_RULES` 加數件數規則：同款食物多件要逐件
+> 數，份量同營養按總件數計 — 茶葉蛋 2 隻只計 1 隻嘅教訓）；之後
+> `src/config/prompts.ts` 恢復禁區。
 
 ## 動效（Motion Polish，2026-11-22）
 
