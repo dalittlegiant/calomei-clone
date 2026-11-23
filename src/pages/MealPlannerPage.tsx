@@ -3,7 +3,7 @@
 // 皮膚 100% DESIGN.md：Warm Obsidian Liquid Glass、琥珀 #FF9F0A、湖水綠
 // #14B8A6，嚴禁白底／淺色／綠藍板。動效跟 src/motion/presets（只驅動
 // transform／opacity；新膠囊用全站唯一 layoutId）。
-// 數據：Dexie v3 三表（recipes / meal_plans / grocery_items）＋ settings
+// 數據：Dexie v4 三表（recipes / meal_plans / grocery_items）＋ settings
 // cooking_prefs；寫入 food_entries 後跳轉 ResultPage（由 App 接手）。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -262,11 +262,28 @@ export default function MealPlannerPage({
   const remainingProtein = target.proteinG - todayTotals.proteinG
 
   const recipeList = recipes ?? []
+  // 今期推薦 = 非收藏菜式＋任何已勾選嘅菜式（已勾選嘅收藏菜兩邊都會見到）。
   const shownRecipes =
     libraryTab === 'fav'
       ? recipeList.filter((r) => r.isFavorite)
-      : recipeList
-  const sharedTags = useMemo(
+      : recipeList.filter((r) => !r.isFavorite || selected.has(r.id))
+  // 保留名單：★ 收藏＋勾選緊＋已經生成買餸清單嗰啲（meal_plans）。
+  const keptRecipeIds = useMemo(() => {
+    const kept = new Set<string>(selected)
+    for (const p of mealPlans ?? []) kept.add(p.recipeId)
+    return kept
+  }, [selected, mealPlans])
+  // 可清走嘅舊推薦：未收藏又未勾選。
+  const prunableRecipes = useMemo(
+    () => recipeList.filter((r) => !r.isFavorite && !keptRecipeIds.has(r.id)),
+    [recipeList, keptRecipeIds],
+  )
+  /** 刪走所有未收藏且未勾選嘅舊推薦（重推／清空共用），回傳清走咗幾多款。 */
+  async function pruneUnkeptRecipes(): Promise<number> {
+    if (prunableRecipes.length === 0) return 0
+    await db.recipes.bulkDelete(prunableRecipes.map((r) => r.id))
+    return prunableRecipes.length
+  }  const sharedTags = useMemo(
     () => sharedIngredientTags(recipeList),
     [recipeList],
   )
@@ -308,6 +325,19 @@ export default function MealPlannerPage({
     })
   }
 
+  /** 踢走單一推介：刪菜式，連勾選同已生成嘅 meal_plans 行一併清走（買餸清單本身係快照，唔郁）。 */
+  async function dismissRecipe(id: string): Promise<void> {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    await db.transaction('rw', [db.recipes, db.meal_plans], async () => {
+      await db.recipes.delete(id)
+      await db.meal_plans.where('recipeId').equals(id).delete()
+    })
+  }
+
   async function seedMock(): Promise<void> {
     setSeeding(true)
     try {
@@ -339,10 +369,13 @@ export default function MealPlannerPage({
         },
         (m) => setGenMsg(m),
       )
+      // 重推自動清理：先清走未收藏又未勾選嘅舊推薦（包括示範菜式），
+      // 只保留 ★ 同勾選緊嘅菜，再寫入今批新菜式。
+      const pruned = await pruneUnkeptRecipes()
       await db.recipes.bulkPut(list)
       setLibraryTab('all')
       setGenMsg(
-        `推送咗 ${list.length} 款菜${fridgeItems.length > 0 ? (fridgeMode === 'strict' ? '（只用雪櫃食材）' : '（雪櫃食材為主）') : ''}，勾選想整嘅再生成買餸清單。`,
+        `${pruned > 0 ? `清走咗 ${pruned} 款舊推薦，` : ''}推送咗 ${list.length} 款菜${fridgeItems.length > 0 ? (fridgeMode === 'strict' ? '（只用雪櫃食材）' : '（雪櫃食材為主）') : ''}，勾選想整嘅再生成買餸清單。`,
       )
     } catch (e) {
       setGenError(e instanceof Error ? e.message : '生成失敗，請再試一次。')
@@ -787,11 +820,11 @@ export default function MealPlannerPage({
             </p>
           )}
 
-          {/* 全部／常煮收藏庫 */}
-          <div className="mt-4 flex gap-2">
+          {/* 今期推薦／常煮收藏庫 */}
+          <div className="mt-4 flex flex-wrap gap-2">
             {(
               [
-                ['all', '全部菜式'],
+                ['all', '今期推薦'],
                 ['fav', '常煮收藏庫'],
               ] as Array<['all' | 'fav', string]>
             ).map(([key, label]) => (
@@ -808,6 +841,19 @@ export default function MealPlannerPage({
                 {label}
               </button>
             ))}
+            {libraryTab === 'all' && prunableRecipes.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const n = await pruneUnkeptRecipes()
+                  if (n > 0) setGenMsg(`已清走 ${n} 款未收藏推薦。`)
+                }}
+                aria-label={`清空未收藏，共 ${prunableRecipes.length} 款`}
+                className="glass-subcard pressable ml-auto min-h-[44px] shrink-0 rounded-full px-3 py-2 text-xs font-bold text-white/50"
+              >
+                清空未收藏（{prunableRecipes.length}）
+              </button>
+            )}
           </div>
 
           {recipeList.length === 0 ? (
@@ -844,6 +890,16 @@ export default function MealPlannerPage({
                       isSel ? 'ring-2 ring-[#FF9F0A]/70' : ''
                     }`}
                   >
+                    {!recipe.isFavorite && (
+                      <button
+                        type="button"
+                        onClick={() => dismissRecipe(recipe.id)}
+                        aria-label={`踢走 ${recipe.name}`}
+                        className="pressable absolute top-[18px] right-16 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/30 text-white/40"
+                      >
+                        <XIcon size={14} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => toggleSelect(recipe.id)}
@@ -860,7 +916,7 @@ export default function MealPlannerPage({
                         <CheckIcon size={16} />
                       </span>
                     </button>
-                    <h3 className="pr-10 text-lg leading-snug font-bold">
+                    <h3 className="pr-24 text-lg leading-snug font-bold">
                       {recipe.name}
                     </h3>
                     <p className="mt-1 flex items-center gap-1 text-sm text-white/50 tabular-nums">
