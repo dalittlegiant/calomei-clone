@@ -48,6 +48,21 @@ body {
   color: var(--text-primary);
 }
 
+/* ---- LED seven-segment font for the scale display (DSEG7, OFL) ---- */
+@font-face {
+  font-family: 'DSEG7 Classic';
+  src: url('/fonts/DSEG7Classic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Amber LED readout — use with tabular numbers, e.g. the weight scale. */
+.font-led {
+  font-family: 'DSEG7 Classic', ui-monospace, monospace;
+  letter-spacing: 0.04em;
+}
+
 /* ---- Warm Obsidian Liquid Glass system (see DESIGN.md) ---- */
 
 /* Main frosted-glass card: translucent white on warm charcoal. */

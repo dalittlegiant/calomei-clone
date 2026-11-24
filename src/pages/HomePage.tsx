@@ -34,31 +34,44 @@ import {
   ActivityIcon,
   CameraIcon,
   DropletIcon,
-  FlameIcon,
 } from '../components/icons'
+import {
+  NUTRIENT_META,
+  NutrientIcon,
+  type NutrientKey,
+} from '../components/nutrients'
 import { GlassButton } from '../components/ui'
 
 /** 細圓圈進度環 — 跟大卡路里火焰圓環同一套 SVG 做法（細一號，64px）。
- * 數值喺圓圈中間；超咗上限（糖／鈉）變紅色。 */
+ * 無 icon 就數值喺圓圈中間；主頁營養格傳 icon 入去（圓圈入面係營養素
+ * 圖示，數值改放喺下面「值／目標」）。超咗上限（糖／鈉）圓圈變紅色。 */
 function MiniRing({
   value,
   goal,
   over = false,
+  /** Nutrient icon rendered in the centre instead of the number
+   *  (home tiles match the original app: icon in the ring). */
+  icon,
+  /** Ring colour — the nutrient's semantic colour; over-ceiling
+   *  still turns the ring red. */
+  color = '#FF9F0A',
 }: {
   value: number
   goal: number
   over?: boolean
+  icon?: React.ReactNode
+  color?: string
 }) {
   const r = 26
   const c = 2 * Math.PI * r
   const frac = goal > 0 ? Math.min(1, Math.max(0, value / goal)) : 0
-  const color = over ? '#F87171' : '#FF9F0A'
+  const ringColor = over ? '#F87171' : color
   return (
     <div className="relative mx-auto h-16 w-16">
       <svg
         viewBox="0 0 64 64"
         className="h-16 w-16 -rotate-90"
-        style={{ filter: `drop-shadow(0 0 6px ${color}55)` }}
+        style={{ filter: `drop-shadow(0 0 6px ${ringColor}55)` }}
       >
         <circle
           cx="32"
@@ -73,7 +86,7 @@ function MiniRing({
           cy="32"
           r={r}
           fill="none"
-          stroke={color}
+          stroke={ringColor}
           strokeWidth="6"
           strokeLinecap="round"
           strokeDasharray={c}
@@ -83,9 +96,11 @@ function MiniRing({
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm leading-none font-bold tabular-nums">
-          <AnimatedNumber value={value} format={fmt1dp} />
-        </span>
+        {icon ?? (
+          <span className="text-sm leading-none font-bold tabular-nums">
+            <AnimatedNumber value={value} format={fmt1dp} />
+          </span>
+        )}
       </span>
     </div>
   )
@@ -238,6 +253,20 @@ export default function HomePage({
       return true
     }
   })()
+  // 每日飲水目標（2026-11-24：飲水轉盤「你啲樽」設定，settings
+  // `water_goal_ml`；未設定就用原 app 預設 2,000 ml）。
+  const waterGoalRow = useLiveQuery(
+    () => db.settings.get('water_goal_ml'),
+    [],
+  )
+  const waterGoalMl = (() => {
+    if (!waterGoalRow) return WATER_TARGET_ML
+    try {
+      return JSON.parse(waterGoalRow.value) as number
+    } catch {
+      return WATER_TARGET_ML
+    }
+  })()
   const exerciseAllowanceKcal = (dayExercise ?? []).reduce(
     (a, e) => a + allowanceKcalFor(e.caloriesBurned, countsTowardAllowance),
     0,
@@ -303,7 +332,7 @@ export default function HomePage({
   }
 
   const bottles = Math.floor(waterTotal / BOTTLE_ML)
-  const targetBottles = Math.round(WATER_TARGET_ML / BOTTLE_ML)
+  const targetBottles = Math.round(waterGoalMl / BOTTLE_ML)
   const ringFrac = Math.max(0, Math.min(1, remaining / target.calories))
   const ringC = 2 * Math.PI * 30
 
@@ -433,27 +462,34 @@ export default function HomePage({
                         transition={{ duration: DUR.ring, ease: 'easeOut' }}
                       />
                     </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[#FF9F0A]">
-                      <FlameIcon size={28} />
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <NutrientIcon nutrient="calories" size={28} />
                     </span>
                   </div>
                 </div>
               </div>
 
               <div className="mt-2 grid grid-cols-3 gap-2">
-                {[
-                  { label: '蛋白質', value: round1(totals.proteinG), goal: target.proteinG, unit: 'g' },
-                  { label: '碳水', value: round1(totals.carbsG), goal: target.carbsG, unit: 'g' },
-                  { label: '脂肪', value: round1(totals.fatG), goal: target.fatG, unit: 'g' },
-                ].map((m) => (
+                {(
+                  [
+                    { label: '蛋白質', value: round1(totals.proteinG), goal: target.proteinG, unit: 'g', nutrient: 'proteinG' },
+                    { label: '碳水', value: round1(totals.carbsG), goal: target.carbsG, unit: 'g', nutrient: 'carbsG' },
+                    { label: '脂肪', value: round1(totals.fatG), goal: target.fatG, unit: 'g', nutrient: 'fatG' },
+                  ] as Array<{ label: string; value: number; goal: number; unit: string; nutrient: NutrientKey }>
+                ).map((m) => (
                   <div
                     key={m.label}
                     className="glass-subcard p-3 text-center"
                   >
-                    <MiniRing value={m.value} goal={m.goal} />
+                    <MiniRing
+                      value={m.value}
+                      goal={m.goal}
+                      color={NUTRIENT_META[m.nutrient].color}
+                      icon={<NutrientIcon nutrient={m.nutrient} size={22} />}
+                    />
                     <p className="mt-1 text-xs text-white/60">{m.label}</p>
                     <p className="text-[11px] whitespace-nowrap text-white/40">
-                      /{m.goal}
+                      {m.value.toLocaleString()}/{m.goal.toLocaleString()}
                       {m.unit}
                     </p>
                   </div>
@@ -470,7 +506,7 @@ export default function HomePage({
                     飲水
                   </h3>
                   <span className="text-xs whitespace-nowrap text-white/40">
-                    目標 {targetBottles} 樽 · {WATER_TARGET_ML.toLocaleString()} ml
+                    目標 {targetBottles} 樽 · {waterGoalMl.toLocaleString()} ml
                   </span>
                 </div>
                 <div className="relative mt-3 flex items-end justify-between gap-2">
@@ -514,19 +550,21 @@ export default function HomePage({
                 <p className="mt-2 text-sm whitespace-nowrap text-white/60">
                   {bottles} / {targetBottles} 樽 ·{' '}
                   {waterTotal.toLocaleString()} /{' '}
-                  {WATER_TARGET_ML.toLocaleString()} ml
+                  {waterGoalMl.toLocaleString()} ml
                   {waterTotal === 0
-                    ? ' · 仲差 2,000 · 仙人掌？'
-                    : ` · 仲差 ${Math.max(0, WATER_TARGET_ML - waterTotal).toLocaleString()} ml`}
+                    ? ` · 仲差 ${waterGoalMl.toLocaleString()} · 仙人掌？`
+                    : ` · 仲差 ${Math.max(0, waterGoalMl - waterTotal).toLocaleString()} ml`}
                 </p>
               </div>
 
               <div className="mt-2 grid grid-cols-3 gap-2">
-                {[
-                  { label: '糖', value: round1(totals.sugarG), goal: target.sugarCeilingG, unit: 'g', ceiling: true },
-                  { label: '纖維', value: round1(totals.fiberG), goal: target.fiberFloorG, unit: 'g', ceiling: false },
-                  { label: '鈉', value: Math.round(totals.sodiumMg), goal: target.sodiumCeilingMg, unit: 'mg', ceiling: true },
-                ].map((m) => (
+                {(
+                  [
+                    { label: '糖', value: round1(totals.sugarG), goal: target.sugarCeilingG, unit: 'g', ceiling: true, nutrient: 'sugarG' },
+                    { label: '纖維', value: round1(totals.fiberG), goal: target.fiberFloorG, unit: 'g', ceiling: false, nutrient: 'fiberG' },
+                    { label: '鈉', value: Math.round(totals.sodiumMg), goal: target.sodiumCeilingMg, unit: 'mg', ceiling: true, nutrient: 'sodiumMg' },
+                  ] as Array<{ label: string; value: number; goal: number; unit: string; ceiling: boolean; nutrient: NutrientKey }>
+                ).map((m) => (
                   <div
                     key={m.label}
                     className="glass-subcard p-3 text-center"
@@ -535,10 +573,12 @@ export default function HomePage({
                       value={m.value}
                       goal={m.goal}
                       over={m.ceiling && m.value > m.goal}
+                      color={NUTRIENT_META[m.nutrient].color}
+                      icon={<NutrientIcon nutrient={m.nutrient} size={22} />}
                     />
                     <p className="mt-1 text-xs text-white/60">{m.label}</p>
                     <p className="text-[11px] whitespace-nowrap text-white/40">
-                      /{m.goal}
+                      {m.value.toLocaleString()}/{m.goal.toLocaleString()}
                       {m.unit}
                     </p>
                   </div>

@@ -1,14 +1,28 @@
 // Add sheet — 統一新增入口，照原 app「又食嘢？揀個方法認罪」
 // 9 格：影相 / 搜尋 / 掃描 / 上載 / 收藏 / 打字 / 運動 / 飲水 / 上磅
-// （2026-11-24：全部改用深色暖黑圓底＋琥珀金剪影 SVG，嚴禁 Emoji。
-// 掃描 = 影營養標籤（ScanPage label 模式）；運動開兩步記運動頁。）
+// （2026-11-24：九宮格用 @phosphor-icons/react weight="fill" 實心圖示，
+// 嚴禁 Emoji。掃描 = 影營養標籤（ScanPage label 模式）；運動開兩步
+// 記運動頁；飲水開三格轉盤彈窗；上磅開電子磅＋刻度尺彈窗。）
 // 影相 / 上載用 <label> 包住隱藏 file input，撳落去直接開相機／相簿。
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type FoodComponent, type SavedFood } from '../lib/db'
-import { inferMealType } from '../lib/image'
-import { BOTTLE_ML } from '../lib/nutrition'
+import {
+  BowlFood,
+  Bread,
+  Cake,
+  Carrot,
+  Cheese,
+  Coffee,
+  CookingPot,
+  Egg,
+  FishSimple,
+  Grains,
+  Leaf,
+  Orange,
+} from '@phosphor-icons/react'
+import { db, type FoodComponent, type FoodEntry, type SavedFood } from '../lib/db'
+import { inferMealType, type MealType } from '../lib/image'
 import { GlassModal } from '../components/ui'
 import {
   BarcodeSilhouetteIcon,
@@ -21,16 +35,10 @@ import {
   ScaleSilhouetteIcon,
   SearchSilhouetteIcon,
 } from '../components/icons'
-import {
-  dayStartMinutes,
-  getDayStart,
-  todayLogStartMs,
-} from '../lib/day'
-import {
-  macrosForGrams,
-  searchFoods,
-  type LocalFoodItem,
-} from '../lib/foodDb'
+import { NutrientIcon, NutrientMini } from '../components/nutrients'
+import { macrosForGrams, searchFoods, type LocalFoodItem } from '../lib/foodDb'
+import WaterPanel from './WaterPanel'
+import WeightPanel from './WeightPanel'
 
 export type SheetView = 'menu' | 'search' | 'saved' | 'water' | 'weigh'
 
@@ -77,6 +85,38 @@ function savedFallbackComponentsJson(f: SavedFood): string {
   return JSON.stringify([single])
 }
 
+/** 離線食物庫分類 → 單色琥珀金食物圖示（關鍵字配對）。 */
+function FoodCategoryIcon({ category, size = 22 }: { category: string; size?: number }) {
+  const c = category
+  let Icon = BowlFood
+  if (/魚|蝦|蟹|貝|水產/.test(c)) Icon = FishSimple
+  else if (/蔬|瓜|菜|筍/.test(c)) Icon = Carrot
+  else if (/菇|菌|豆|腐/.test(c)) Icon = Leaf
+  else if (/水果/.test(c)) Icon = Orange
+  else if (/蛋/.test(c)) Icon = Egg
+  else if (/乳|奶/.test(c)) Icon = Cheese
+  else if (/飲料|酒|茶|咖啡/.test(c)) Icon = Coffee
+  else if (/麵包/.test(c)) Icon = Bread
+  else if (/糕|餅|點心|蛋糕/.test(c)) Icon = Cake
+  else if (/穀|澱粉|米|麵|粉/.test(c)) Icon = Grains
+  else if (/肉|畜|豬|牛|羊|雞|鴨/.test(c)) Icon = CookingPot
+  return <Icon size={size} weight="fill" className="text-[#FF9F0A]" />
+}
+
+type SearchTab = 'all' | 'recent' | 'saved' | 'custom' | 'list'
+
+/** 搜尋行統一模型：離線庫項目、已記過嘅食物、收藏食物。 */
+type SearchRow =
+  | { kind: 'db'; item: LocalFoodItem }
+  | { kind: 'logged'; entry: FoodEntry }
+  | { kind: 'saved'; food: SavedFood }
+
+const MEAL_LABELS: Array<{ id: MealType; label: string }> = [
+  { id: 'breakfast', label: '早餐' },
+  { id: 'lunch', label: '午餐' },
+  { id: 'dinner', label: '晚餐' },
+]
+
 export default function AddSheet({
   open,
   initialView,
@@ -93,31 +133,14 @@ export default function AddSheet({
 
   // Search view
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchTab, setSearchTab] = useState<SearchTab>('all')
   const [searchResults, setSearchResults] = useState<LocalFoodItem[]>([])
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState(false)
-  const [selectedFood, setSelectedFood] = useState<LocalFoodItem | null>(null)
+  const [adjust, setAdjust] = useState<SearchRow | null>(null)
   const [grams, setGrams] = useState('100')
-
-  // Water view
-  const [dayStart, setDayStart] = useState('00:00')
-  const [customWater, setCustomWater] = useState('')
-  const waterToday = useLiveQuery(
-    () =>
-      db.water_entries
-        .where('date')
-        .aboveOrEqual(todayLogStartMs(dayStartMinutes(dayStart)))
-        .toArray(),
-    [dayStart],
-  )
-  const waterTotal = (waterToday ?? []).reduce((a, w) => a + w.amountML, 0)
-
-  // Weigh view
-  const [weightKg, setWeightKg] = useState('')
-  const [bodyFatPct, setBodyFatPct] = useState('')
-  const [musclePct, setMusclePct] = useState('')
-  const [visceral, setVisceral] = useState('')
-  const [weighMsg, setWeighMsg] = useState<string | null>(null)
+  const [servings, setServings] = useState(1)
+  const [meal, setMeal] = useState<MealType>(() => inferMealType())
 
   // 收藏清單好細，拎晒返嚟喺 JS 排返新到舊 — saved_foods 只有 id 索引，
   // 用 orderBy('createdAt') 會令 Dexie 擲 SchemaError，成個 app 黑屏。
@@ -126,13 +149,60 @@ export default function AddSheet({
     return all.sort((a, b) => b.createdAt - a.createdAt)
   }, [])
 
+  // 搜尋分頁用嘅已記食物 — 同樣拎晒返嚟喺 JS 排（food_entries 只有
+  // id 索引，用 orderBy 會黑屏）。
+  const allEntries = useLiveQuery(() => db.food_entries.toArray(), [])
+  const sortedEntries = useMemo(
+    () => [...(allEntries ?? [])].sort((a, b) => b.date - a.date),
+    [allEntries],
+  )
+  /** 最近：按名去重，最新行先。 */
+  const recentRows: SearchRow[] = useMemo(() => {
+    const seen = new Set<string>()
+    const rows: SearchRow[] = []
+    for (const e of sortedEntries) {
+      if (seen.has(e.name)) continue
+      seen.add(e.name)
+      rows.push({ kind: 'logged', entry: e })
+      if (rows.length >= 12) break
+    }
+    return rows
+  }, [sortedEntries])
+  /** 自訂：記過但未入收藏嘅食物（AI／打字估出嚟嗰啲）。 */
+  const customRows: SearchRow[] = useMemo(() => {
+    const savedNames = new Set((savedFoods ?? []).map((f) => f.name))
+    return recentRows.filter(
+      (r) => r.kind === 'logged' && !savedNames.has(r.entry.name),
+    )
+  }, [recentRows, savedFoods])
+  /** 清單：常食清單 — 食過最多次嘅 12 樣。 */
+  const frequentRows: SearchRow[] = useMemo(() => {
+    const byName = new Map<
+      string,
+      { entry: FoodEntry; count: number; latest: number }
+    >()
+    for (const e of sortedEntries) {
+      const cur = byName.get(e.name)
+      if (cur) {
+        cur.count += 1
+        cur.latest = Math.max(cur.latest, e.date)
+      } else {
+        byName.set(e.name, { entry: e, count: 1, latest: e.date })
+      }
+    }
+    return [...byName.values()]
+      .sort((a, b) => b.count - a.count || b.latest - a.latest)
+      .slice(0, 12)
+      .map((v) => ({ kind: 'logged', entry: v.entry }) as SearchRow)
+  }, [sortedEntries])
+
   useEffect(() => {
     if (open) {
       setView(initialView)
       setSearchQuery('')
+      setSearchTab('all')
       setSearchResults([])
-      setSelectedFood(null)
-      getDayStart().then(setDayStart)
+      setAdjust(null)
     }
   }, [open, initialView])
 
@@ -156,6 +226,7 @@ export default function AddSheet({
     fiberG?: number
     sodiumMg?: number
     componentsJson?: string | null
+    mealType?: MealType
   }) {
     const now = Date.now()
     await db.food_entries.add({
@@ -169,7 +240,7 @@ export default function AddSheet({
       fiberG: round1(e.fiberG ?? 0),
       sodiumMg: Math.round(e.sodiumMg ?? 0),
       servingSize: e.servingSize,
-      mealType: inferMealType(),
+      mealType: e.mealType ?? inferMealType(),
       date: now,
       createdAt: now,
       componentsJson: e.componentsJson ?? null,
@@ -182,7 +253,7 @@ export default function AddSheet({
 
   async function onSearch(q: string) {
     setSearchQuery(q)
-    setSelectedFood(null)
+    setAdjust(null)
     setSearchError(false)
     if (q.trim().length < 1) {
       setSearchResults([])
@@ -201,62 +272,149 @@ export default function AddSheet({
     }
   }
 
-  async function addWater(ml: number) {
-    if (!ml || ml <= 0) return
-    const now = Date.now()
-    await db.water_entries.add({
-      id: crypto.randomUUID(),
-      amountML: Math.round(ml),
-      date: now,
-      createdAt: now,
+  /** 搜尋行快速記入：撳 + 直接按 1 份記入。 */
+  function quickAddRow(row: SearchRow) {
+    if (row.kind === 'db') {
+      const m = macrosForGrams(row.item, 100)
+      addEntry({
+        name: row.item.name,
+        calories: m.calories,
+        proteinG: m.proteinG,
+        carbsG: m.carbsG,
+        fatG: m.fatG,
+        servingSize: '1份（約100克）',
+      })
+    } else if (row.kind === 'logged') {
+      const e = row.entry
+      addEntry({
+        name: e.name,
+        calories: e.calories,
+        proteinG: e.proteinG,
+        carbsG: e.carbsG,
+        fatG: e.fatG,
+        sugarG: e.sugarG ?? 0,
+        fiberG: e.fiberG ?? 0,
+        sodiumMg: e.sodiumMg ?? 0,
+        servingSize: e.servingSize,
+        componentsJson: e.componentsJson ?? null,
+      })
+    } else {
+      addSaved(row.food)
+    }
+  }
+
+  function addSaved(f: SavedFood) {
+    addEntry({
+      name: f.name,
+      calories: f.calories,
+      proteinG: f.proteinG,
+      carbsG: f.carbsG,
+      fatG: f.fatG,
+      servingSize: f.servingSize,
+      // v4：有齊就完整帶入；舊收藏無呢啲欄位就
+      // fallback（營養 0、食材清單單項），唔會炒車。
+      sugarG: f.sugarG ?? 0,
+      fiberG: f.fiberG ?? 0,
+      sodiumMg: f.sodiumMg ?? 0,
+      componentsJson: f.componentsJson ?? savedFallbackComponentsJson(f),
     })
   }
 
-  async function undoWater() {
-    const last = (waterToday ?? []).sort(
-      (a, b) => b.createdAt - a.createdAt,
-    )[0]
-    if (!last) return
-    await db.water_entries.delete(last.id)
+  function openAdjust(row: SearchRow) {
+    setAdjust(row)
+    setGrams('100')
+    setServings(1)
+    setMeal(inferMealType())
   }
 
-  async function addWeight() {
-    const kg = Number(weightKg)
-    const bf = bodyFatPct.trim() === '' ? null : Number(bodyFatPct)
-    const muscle = musclePct.trim() === '' ? null : Number(musclePct)
-    const visc = visceral.trim() === '' ? null : Number(visceral)
-    if (!kg || kg <= 0) return
-    if ((muscle !== null || visc !== null) && bf === null) {
-      setWeighMsg('要填埋體脂，先存到肌肉率／內臟脂肪')
+  /** 調整面板「加入」：離線庫按克數，已記／收藏按份數。 */
+  function confirmAdjust() {
+    if (!adjust) return
+    if (adjust.kind === 'db') {
+      const g = Number(grams)
+      if (!g) return
+      const m = macrosForGrams(adjust.item, g)
+      addEntry({
+        name: adjust.item.name,
+        calories: m.calories,
+        proteinG: m.proteinG,
+        carbsG: m.carbsG,
+        fatG: m.fatG,
+        servingSize: `約${grams}克`,
+        mealType: meal,
+      })
       return
     }
-    const now = Date.now()
-    await db.weight_entries.add({
-      id: crypto.randomUUID(),
-      weightKG: kg,
-      date: now,
-      createdAt: now,
+    const base =
+      adjust.kind === 'logged'
+        ? {
+            name: adjust.entry.name,
+            calories: adjust.entry.calories,
+            proteinG: adjust.entry.proteinG,
+            carbsG: adjust.entry.carbsG,
+            fatG: adjust.entry.fatG,
+            sugarG: adjust.entry.sugarG ?? 0,
+            fiberG: adjust.entry.fiberG ?? 0,
+            sodiumMg: adjust.entry.sodiumMg ?? 0,
+            servingSize: adjust.entry.servingSize,
+            componentsJson: adjust.entry.componentsJson ?? null,
+          }
+        : {
+            name: adjust.food.name,
+            calories: adjust.food.calories,
+            proteinG: adjust.food.proteinG,
+            carbsG: adjust.food.carbsG,
+            fatG: adjust.food.fatG,
+            sugarG: adjust.food.sugarG ?? 0,
+            fiberG: adjust.food.fiberG ?? 0,
+            sodiumMg: adjust.food.sodiumMg ?? 0,
+            servingSize: adjust.food.servingSize,
+            componentsJson:
+              adjust.food.componentsJson ??
+              savedFallbackComponentsJson(adjust.food),
+          }
+    addEntry({
+      name: base.name,
+      calories: base.calories * servings,
+      proteinG: base.proteinG * servings,
+      carbsG: base.carbsG * servings,
+      fatG: base.fatG * servings,
+      sugarG: base.sugarG * servings,
+      fiberG: base.fiberG * servings,
+      sodiumMg: base.sodiumMg * servings,
+      servingSize: `${servings} × ${base.servingSize || '1份'}`,
+      componentsJson: base.componentsJson,
+      mealType: meal,
     })
-    if (bf !== null && bf > 0 && bf < 100) {
-      await db.body_fat_entries.add({
-        id: crypto.randomUUID(),
-        bodyFatPercentage: bf,
-        date: now,
-        createdAt: now,
-        muscleRate:
-          muscle !== null && muscle > 0 && muscle < 100 ? muscle : null,
-        visceralFat: visc !== null && visc > 0 ? visc : null,
-      })
+  }
+
+  /** 調整面板即時預覽數值。 */
+  function adjustPreview(): {
+    calories: number
+    proteinG: number
+    carbsG: number
+    fatG: number
+  } | null {
+    if (!adjust) return null
+    if (adjust.kind === 'db') {
+      const g = Number(grams)
+      if (!g) return null
+      return macrosForGrams(adjust.item, g)
     }
-    onDone(`體重已記錄：${kg} kg`)
-    onClose()
+    const base = adjust.kind === 'logged' ? adjust.entry : adjust.food
+    return {
+      calories: Math.round(base.calories * servings),
+      proteinG: round1(base.proteinG * servings),
+      carbsG: round1(base.carbsG * servings),
+      fatG: round1(base.fatG * servings),
+    }
   }
 
   const titles: Record<SheetView, string> = {
     menu: '又食嘢？揀個方法認罪',
-    search: '搜尋食物（離線食物庫）',
-    saved: '收藏',
-    water: '飲水',
+    search: '認罪',
+    saved: '收藏食物',
+    water: '飲咗邊樽？',
     weigh: '上磅',
   }
 
@@ -284,22 +442,93 @@ export default function AddSheet({
     )
   }
 
+  /** 搜尋行：左圓形食物圖示、中間菜名＋副標、右圓形 + 快速記入。 */
+  function SearchRowButton({ row }: { row: SearchRow }) {
+    const name =
+      row.kind === 'db'
+        ? row.item.name
+        : row.kind === 'logged'
+          ? row.entry.name
+          : row.food.name
+    const subtitle =
+      row.kind === 'db'
+        ? `${row.item.caloriesPerHundredG} 卡 · 1份`
+        : row.kind === 'logged'
+          ? `${row.entry.calories} 卡 · ${row.entry.servingSize || '1份'}`
+          : `${row.food.calories} 卡 · 1份`
+    return (
+      <li className="flex items-center gap-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => openAdjust(row)}
+          className="pressable flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#17140F] ring-1 ring-white/10">
+            {row.kind === 'db' ? (
+              <FoodCategoryIcon category={row.item.category} size={22} />
+            ) : (
+              <BowlFood size={22} weight="fill" className="text-[#FF9F0A]" />
+            )}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate font-bold">{name}</span>
+            <span className="block text-xs text-white/50">{subtitle}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => quickAddRow(row)}
+          aria-label={`快速記入 ${name}`}
+          className="pressable flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-xl font-bold text-white/80"
+        >
+          ＋
+        </button>
+      </li>
+    )
+  }
+
+  const q = searchQuery.trim().toLowerCase()
+  const filterByQuery = (rows: SearchRow[]) =>
+    q ? rows.filter((r) => {
+      const n = r.kind === 'db' ? r.item.name : r.kind === 'logged' ? r.entry.name : r.food.name
+      return n.toLowerCase().includes(q)
+    }) : rows
+  const tabRows: SearchRow[] =
+    searchTab === 'all'
+      ? q
+        ? searchResults.map((item) => ({ kind: 'db', item }) as SearchRow)
+        : recentRows
+      : searchTab === 'recent'
+        ? filterByQuery(recentRows)
+        : searchTab === 'saved'
+          ? filterByQuery(
+              (savedFoods ?? []).map((food) => ({ kind: 'saved', food }) as SearchRow),
+            )
+          : searchTab === 'custom'
+            ? filterByQuery(customRows)
+            : filterByQuery(frequentRows)
+
+  const preview = adjustPreview()
+
   return (
     <GlassModal open={open} onClose={onClose} variant="sheet">
       <div>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">{titles[view]}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pressable rounded-full bg-white/[0.06] px-3 py-1 font-bold text-white/60"
-            aria-label="關閉"
-          >
-            ✕
-          </button>
-        </div>
+        {/* 飲水／上磅面板自帶頂欄，唔重複顯示 sheet 標題。 */}
+        {view !== 'water' && view !== 'weigh' && (
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">{titles[view]}</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="pressable rounded-full bg-white/[0.06] px-3 py-1 font-bold text-white/60"
+              aria-label="關閉"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
-        {view !== 'menu' && (
+        {view !== 'menu' && view !== 'water' && view !== 'weigh' && (
           <button
             type="button"
             onClick={() => setView('menu')}
@@ -379,9 +608,38 @@ export default function AddSheet({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearch(e.target.value)}
-              placeholder="搜尋食物，例如：鯖魚、米飯…"
+              placeholder="又食咗咩..."
               className="glass-input"
             />
+            {/* 5 個分頁膠囊，帶琥珀底線指示。 */}
+            <div className="mt-3 flex justify-between border-b border-white/10">
+              {(
+                [
+                  { id: 'all', label: '全部' },
+                  { id: 'recent', label: '最近' },
+                  { id: 'saved', label: '收藏' },
+                  { id: 'custom', label: '自訂' },
+                  { id: 'list', label: '清單' },
+                ] as Array<{ id: SearchTab; label: string }>
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setSearchTab(t.id)
+                    setAdjust(null)
+                  }}
+                  className={`pressable -mb-px border-b-2 px-2 pb-2 font-bold ${
+                    searchTab === t.id
+                      ? 'border-[#FF9F0A] text-[#FF9F0A]'
+                      : 'border-transparent text-white/50'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
             {searching && (
               <p className="mt-2 text-sm text-white/40">搵緊…</p>
             )}
@@ -390,80 +648,152 @@ export default function AddSheet({
                 食物庫載入失敗，請檢查網絡再試過。
               </p>
             )}
-            {selectedFood && (
+
+            {/* 調整面板：份數／克數＋餐類。 */}
+            {adjust && preview && (
               <div className="mt-3 rounded-2xl bg-[#FF9F0A]/10 p-3">
-                <p className="font-bold">{selectedFood.name}</p>
-                <p className="text-xs text-white/50">
-                  每100克 {selectedFood.caloriesPerHundredG} kcal
-                </p>
-                <div className="mt-2 flex gap-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={grams}
-                    onChange={(e) => setGrams(e.target.value)}
-                    placeholder="克數"
-                    className="min-w-0 flex-1 glass-input"
-                  />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold">
+                      {adjust.kind === 'db'
+                        ? adjust.item.name
+                        : adjust.kind === 'logged'
+                          ? adjust.entry.name
+                          : adjust.food.name}
+                    </p>
+                    <p className="text-xs text-white/50">
+                      {adjust.kind === 'db'
+                        ? `每100克 ${adjust.item.caloriesPerHundredG} kcal`
+                        : `上次：${
+                            adjust.kind === 'logged'
+                              ? adjust.entry.servingSize || '1份'
+                              : adjust.food.servingSize || '1份'
+                          } · ${
+                            adjust.kind === 'logged'
+                              ? adjust.entry.calories
+                              : adjust.food.calories
+                          } kcal`}
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    disabled={!Number(grams)}
-                    onClick={() => {
-                      const m = macrosForGrams(selectedFood, Number(grams))
-                      addEntry({
-                        name: selectedFood.name,
-                        calories: m.calories,
-                        proteinG: m.proteinG,
-                        carbsG: m.carbsG,
-                        fatG: m.fatG,
-                        servingSize: `約${grams}克`,
-                      })
-                    }}
-                    className="pressable rounded-xl glass-cta-amber px-4 py-2 font-bold text-white disabled:opacity-40"
+                    onClick={() => setAdjust(null)}
+                    aria-label="取消調整"
+                    className="pressable shrink-0 px-1 text-white/50"
                   >
-                    加入
+                    ✕
                   </button>
                 </div>
-              </div>
-            )}
-            {searchResults.length > 0 && (
-              <ul className="mt-2 divide-y divide-white/10">
-                {searchResults.map((food) => (
-                  <li key={food.id}>
+                {adjust.kind === 'db' ? (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={grams}
+                      onChange={(e) => setGrams(e.target.value)}
+                      placeholder="克數"
+                      className="min-w-0 flex-1 glass-input"
+                    />
+                    <span className="self-center text-sm text-white/50">克</span>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex items-center justify-center gap-4">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedFood(food)
-                        setGrams('100')
-                      }}
-                      className="pressable flex w-full items-center justify-between gap-2 py-2 text-left"
+                      onClick={() => setServings((s) => Math.max(0.5, round1(s - 0.5)))}
+                      disabled={servings <= 0.5}
+                      aria-label="減少份數"
+                      className="pressable flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg font-bold disabled:opacity-30"
                     >
-                      <span className="min-w-0">
-                        <span className="block truncate font-bold">
-                          {food.name}{' '}
-                          <span className="font-normal text-white/40">
-                            {food.nameEN ?? ''}
-                          </span>
-                        </span>
-                        <span className="block text-xs text-white/50">
-                          {food.category} · 每100克 {food.caloriesPerHundredG}{' '}
-                          kcal
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-bold text-[#FF9F0A]">›</span>
+                      −
                     </button>
-                  </li>
+                    <span className="text-xl font-bold tabular-nums">
+                      {servings} 份
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setServings((s) => Math.min(5, round1(s + 0.5)))}
+                      disabled={servings >= 5}
+                      aria-label="增加份數"
+                      className="pressable flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg font-bold disabled:opacity-30"
+                    >
+                      ＋
+                    </button>
+                  </div>
+                )}
+                <div className="mt-2 grid grid-cols-3 gap-1 rounded-2xl bg-black/25 p-1">
+                  {MEAL_LABELS.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMeal(m.id)}
+                      className={`pressable rounded-xl py-2 text-sm font-bold ${
+                        meal === m.id
+                          ? 'bg-[#FF9F0A]/25 text-[#FF9F0A]'
+                          : 'text-white/50'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <span className="inline-flex items-center gap-1 font-bold">
+                    <NutrientIcon nutrient="calories" size={15} />
+                    {preview.calories} kcal
+                  </span>
+                  <NutrientMini nutrient="proteinG" value={preview.proteinG} />
+                  <NutrientMini nutrient="carbsG" value={preview.carbsG} />
+                  <NutrientMini nutrient="fatG" value={preview.fatG} />
+                </p>
+                <button
+                  type="button"
+                  disabled={adjust.kind === 'db' && !Number(grams)}
+                  onClick={confirmAdjust}
+                  className="pressable mt-2 w-full rounded-xl glass-cta-amber py-2.5 font-bold text-white disabled:opacity-40"
+                >
+                  加入
+                </button>
+              </div>
+            )}
+
+            {searchTab === 'all' && !q && (
+              <p className="mt-3 text-xs font-bold text-white/40">
+                最近食過
+              </p>
+            )}
+            {tabRows.length > 0 && (
+              <ul className="divide-y divide-white/10">
+                {tabRows.map((row) => (
+                  <SearchRowButton
+                    key={
+                      row.kind === 'db'
+                        ? row.item.id
+                        : row.kind === 'logged'
+                          ? `log-${row.entry.id}`
+                          : `saved-${row.food.id}`
+                    }
+                    row={row}
+                  />
                 ))}
               </ul>
             )}
-            {searchQuery.trim() &&
-              !searching &&
-              !searchError &&
-              searchResults.length === 0 && (
-                <p className="mt-3 text-center text-sm text-white/40">
-                  食物庫搵唔到，試下打字叫 AI 估啦。
-                </p>
-              )}
+            {searchTab === 'all' && q && !searching && !searchError && tabRows.length === 0 && (
+              <p className="mt-3 text-center text-sm text-white/40">
+                食物庫搵唔到，試下打字叫 AI 估啦。
+              </p>
+            )}
+            {searchTab !== 'all' && tabRows.length === 0 && (
+              <p className="mt-3 text-center text-sm text-white/40">
+                {searchTab === 'recent'
+                  ? '未有最近食過嘅記錄。'
+                  : searchTab === 'saved'
+                    ? '未收藏任何食物 — 去結果頁撳「收藏呢餐」就得。'
+                    : searchTab === 'custom'
+                      ? '未有自訂食物 — 打字叫 AI 估，記低之後就會出現喺呢度。'
+                      : '食多幾餐先有常食清單。'}
+              </p>
+            )}
           </div>
         )}
 
@@ -476,44 +806,61 @@ export default function AddSheet({
             )}
             <ul className="space-y-2">
               {(savedFoods ?? []).map((f) => (
-                <li
-                  key={f.id}
-                  className="flex items-center gap-2 rounded-2xl glass-subcard p-3"
-                >
+                <li key={f.id} className="rounded-2xl glass-subcard p-4">
                   <button
                     type="button"
-                    onClick={() =>
-                      addEntry({
-                        name: f.name,
-                        calories: f.calories,
-                        proteinG: f.proteinG,
-                        carbsG: f.carbsG,
-                        fatG: f.fatG,
-                        servingSize: f.servingSize,
-                        // v4：有齊就完整帶入；舊收藏無呢啲欄位就
-                        // fallback（營養 0、食材清單單項），唔會炒車。
-                        sugarG: f.sugarG ?? 0,
-                        fiberG: f.fiberG ?? 0,
-                        sodiumMg: f.sodiumMg ?? 0,
-                        componentsJson:
-                          f.componentsJson ??
-                          savedFallbackComponentsJson(f),
-                      })
-                    }
-                    className="pressable min-w-0 flex-1 text-left"
+                    onClick={() => addSaved(f)}
+                    className="pressable block w-full text-left"
                   >
-                    <span className="block truncate font-bold">{f.name}</span>
-                    <span className="block text-xs text-white/50">
-                      {f.calories} kcal · {f.servingSize || '一份'}
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#17140F] ring-1 ring-white/10">
+                          <BowlFood
+                            size={22}
+                            weight="fill"
+                            className="text-[#FF9F0A]"
+                          />
+                        </span>
+                        <span className="min-w-0 truncate font-bold">
+                          {f.name}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-white/50">
+                        1份
+                      </span>
+                    </span>
+                    <span className="mt-2 flex items-center gap-1.5 text-xl font-bold">
+                      <NutrientIcon nutrient="calories" size={20} />
+                      {f.calories} 卡路里
+                    </span>
+                    <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                      {f.proteinG > 0 && (
+                        <NutrientMini nutrient="proteinG" value={round1(f.proteinG)} />
+                      )}
+                      {f.carbsG > 0 && (
+                        <NutrientMini nutrient="carbsG" value={round1(f.carbsG)} />
+                      )}
+                      {f.fatG > 0 && (
+                        <NutrientMini nutrient="fatG" value={round1(f.fatG)} />
+                      )}
+                      {(f.sugarG ?? 0) > 0 && (
+                        <NutrientMini nutrient="sugarG" value={round1(f.sugarG ?? 0)} />
+                      )}
+                      {(f.fiberG ?? 0) > 0 && (
+                        <NutrientMini nutrient="fiberG" value={round1(f.fiberG ?? 0)} />
+                      )}
+                      {(f.sodiumMg ?? 0) > 0 && (
+                        <NutrientMini nutrient="sodiumMg" value={Math.round(f.sodiumMg ?? 0)} />
+                      )}
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => db.saved_foods.delete(f.id)}
-                    className="pressable px-2 text-red-400"
-                    aria-label="刪除收藏"
+                    className="pressable mt-1 text-xs font-bold text-white/30"
+                    aria-label={`刪除收藏 ${f.name}`}
                   >
-                    ✕
+                    刪除收藏
                   </button>
                 </li>
               ))}
@@ -521,134 +868,9 @@ export default function AddSheet({
           </div>
         )}
 
-        {view === 'water' && (
-          <div className="mt-3">
-            <p className="text-center text-lg font-bold">
-              今日飲咗 {waterTotal.toLocaleString()} ml ·{' '}
-              {Math.floor(waterTotal / BOTTLE_ML)} 樽
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => addWater(BOTTLE_ML)}
-                className="pressable rounded-2xl glass-cta-teal py-3 font-bold text-white"
-              >
-                +1 樽（500ml）
-              </button>
-              <button
-                type="button"
-                onClick={() => addWater(250)}
-                className="pressable rounded-2xl bg-[#14B8A6]/15 py-3 font-bold text-teal-200"
-              >
-                +250 ml
-              </button>
-            </div>
-            <div className="mt-2 flex gap-2">
-              <input
-                type="number"
-                inputMode="decimal"
-                value={customWater}
-                onChange={(e) => setCustomWater(e.target.value)}
-                placeholder="自訂毫升"
-                className="min-w-0 flex-1 glass-input"
-              />
-              <button
-                type="button"
-                disabled={!Number(customWater)}
-                onClick={() => {
-                  addWater(Number(customWater))
-                  setCustomWater('')
-                }}
-                className="rounded-xl glass-cta-teal px-4 py-2 font-bold text-white disabled:opacity-40"
-              >
-                加入
-              </button>
-              <button
-                type="button"
-                disabled={(waterToday ?? []).length === 0}
-                onClick={undoWater}
-                className="rounded-xl glass-subcard px-3 py-2 font-bold text-white/50 disabled:opacity-40"
-              >
-                撤銷
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-3 w-full rounded-2xl glass-subcard py-3 font-bold text-white/80"
-            >
-              完成
-            </button>
-          </div>
-        )}
+        {view === 'water' && <WaterPanel onDone={onDone} onClose={onClose} />}
 
-        {view === 'weigh' && (
-          <div className="mt-3">
-            <div className="grid grid-cols-2 gap-2">
-              <label>
-                <span className="text-xs font-bold text-white/60">體重 kg *</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  value={weightKg}
-                  onChange={(e) => setWeightKg(e.target.value)}
-                  placeholder="例如 64.0"
-                  className="mt-0.5 glass-input"
-                />
-              </label>
-              <label>
-                <span className="text-xs font-bold text-white/60">體脂 %</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  value={bodyFatPct}
-                  onChange={(e) => setBodyFatPct(e.target.value)}
-                  placeholder="例如 24.0"
-                  className="mt-0.5 glass-input"
-                />
-              </label>
-              <label>
-                <span className="text-xs font-bold text-white/60">肌肉率 %（可選）</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  value={musclePct}
-                  onChange={(e) => setMusclePct(e.target.value)}
-                  placeholder="例如 38.5"
-                  className="mt-0.5 glass-input"
-                />
-              </label>
-              <label>
-                <span className="text-xs font-bold text-white/60">內臟脂肪（可選）</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  value={visceral}
-                  onChange={(e) => setVisceral(e.target.value)}
-                  placeholder="例如 6"
-                  className="mt-0.5 glass-input"
-                />
-              </label>
-            </div>
-            {weighMsg && (
-              <p className="mt-2 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
-                {weighMsg}
-              </p>
-            )}
-            <button
-              type="button"
-              disabled={!Number(weightKg)}
-              onClick={addWeight}
-              className="pressable mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
-            >
-              記錄
-            </button>
-          </div>
-        )}
+        {view === 'weigh' && <WeightPanel onDone={onDone} onClose={onClose} />}
       </div>
     </GlassModal>
   )

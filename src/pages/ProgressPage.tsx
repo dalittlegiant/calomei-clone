@@ -22,6 +22,7 @@ import {
   todayLogStartMs,
 } from '../lib/day'
 import { GlassCard } from '../components/ui'
+import { NutrientIcon } from '../components/nutrients'
 import {
   computeDeficit,
   deficitComment,
@@ -228,12 +229,17 @@ export default function ProgressPage({ profile, onOpenDeficit }: Props) {
               key={n.key}
               type="button"
               onClick={() => setNutrient(n.key)}
-              className={`rounded-full px-3 py-1.5 text-sm font-bold ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${
                 nutrient === n.key
                   ? 'glass-cta-amber text-white'
                   : 'bg-white/[0.06] text-white/60'
               }`}
             >
+              <NutrientIcon
+                nutrient={n.key}
+                size={15}
+                color={nutrient === n.key ? '#FFFFFF' : undefined}
+              />
               {n.label}
             </button>
           ))}

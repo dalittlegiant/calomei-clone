@@ -103,6 +103,24 @@
 > `prompts.ts`／`vision.ts`／`foodDb.ts`／`health.ts` 今次無郁，之後
 > `src/lib/` 恢復禁區。
 
+> 2026-11-24（九宮格子頁面升級：營養素圖示＋搜尋／收藏／飲水／上磅）：
+> 今次**無郁 `src/lib/` 同 `src/config/prompts.ts`**，唔需要特批。
+> 新增 `src/components/nutrients.tsx`（7 項營養素圖示＋語意色共用元件）、
+> `src/pages/WaterPanel.tsx`（三格飲水轉盤＋每日目標設定）、
+> `src/pages/WeightPanel.tsx`（電子磅＋0.1 kg 刻度尺），改寫
+> `src/pages/AddSheet.tsx`（搜尋 5 分頁＋調整面板、收藏卡）、
+> `src/pages/ProgressPage.tsx`（圖表膠囊加營養素圖示）、
+> `src/pages/HomePage.tsx`（飲水目標改讀 settings `water_goal_ml`，
+> 預設 2,000 ml）。DSEG7 七段字體放 `public/fonts/`（OFL）。
+> 設計記錄見 DESIGN.md §13。體脂／肌肉率／內臟脂肪繼續喺進度頁
+> 「＋記錄」入面填；飲水「撤銷上一筆」保留；kg／lb 切換只換顯示，
+> 儲存同刻度尺維持 kg。Kong 2026-11-24 追問主頁兩頁 Scorecard
+> 嘅 MiniRing 格未加營養素圖示——同一晚補咗：`HomePage.tsx`
+> 嘅 MiniRing 加 `icon`／`color` props，6 格（蛋白質／碳水／脂肪、
+> 糖／纖維／鈉）圓圈入面係 `NutrientIcon`、圓圈弧用返語意色（糖／鈉
+> 超上限先變紅）、數值改放下面「值／目標」；大火焰圓環中間嘅
+> 舊 `FlameIcon`（Lucide 線條）換埋 `NutrientIcon` calories。
+
 ## 主頁捲動（2026-11-23，Kong 定案）
 
 - 主頁頂部 header（`App.tsx`）同日期列（`HomePage.tsx` week strip）**刻意
