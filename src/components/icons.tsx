@@ -1,6 +1,50 @@
 // Lucide-style monochrome line icons (24×24, stroke = currentColor).
 // Hand-written SVG paths matching Lucide's stroke style — no emoji, no icon font.
 import type { ReactNode } from 'react'
+import {
+  Barbell,
+  Barcode,
+  Baseball,
+  Basketball,
+  BookmarkSimple,
+  BowlingBall,
+  Broom,
+  Camera,
+  Circle,
+  CookingPot,
+  Drop,
+  Golf,
+  Images,
+  Keyboard,
+  Leaf,
+  MagnifyingGlass,
+  PersonSimpleBike,
+  PersonSimpleHike,
+  PersonSimpleRun,
+  PersonSimpleSki,
+  PersonSimpleSwim,
+  PersonSimpleTaiChi,
+  PersonSimpleWalk,
+  PingPong,
+  Scales,
+  SoccerBall,
+  TennisBall,
+  Volleyball,
+} from '@phosphor-icons/react'
+import {
+  MdAccessibility,
+  MdBolt,
+  MdFitnessCenter,
+  MdIceSkating,
+  MdLocalCarWash,
+  MdRowing,
+  MdSelfImprovement,
+  MdSportsGymnastics,
+  MdSportsMma,
+  MdSportsTennis,
+  MdStairs,
+  MdSurfing,
+} from 'react-icons/md'
 
 function Svg({
   size = 20,
@@ -268,4 +312,184 @@ export function ClockIcon({ size = 20, className }: { size?: number; className?:
       <polyline points="12 6 12 12 16 14" />
     </Svg>
   )
+}
+
+// ---------------------------------------------------------------------------
+// 專業圖示庫 — Warm Obsidian Liquid Glass（2026-11-24，Kong 要求換走手寫剪影）。
+// 九宮格＋運動圖示全部改用 @phosphor-icons/react（weight="fill" 實心）
+// 及 react-icons/md（Material Design 實心）標準圖示；手寫 <path> 剪影已
+// 全部刪除。顏色由用嗰陣嘅 text-[#FF9F0A] 控制（兩個庫都用 currentColor），
+// 底托仍然係深色暖黑圓形。嚴禁 Emoji。
+// ---------------------------------------------------------------------------
+
+type IconProps = { size?: number; className?: string }
+
+/** 九宮格：影相 — Phosphor Camera（實心）。 */
+export function CameraSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <Camera size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：搜尋 — Phosphor MagnifyingGlass（實心）。 */
+export function SearchSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <MagnifyingGlass size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：掃描 — Phosphor Barcode（實心）。 */
+export function BarcodeSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <Barcode size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：上載 — Phosphor Images（實心）。 */
+export function PhotoSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <Images size={size} weight="fill" className={className} />
+}
+
+/** 九宮格＋收藏開關：書籤 — Phosphor BookmarkSimple（實心）。 */
+export function BookmarkSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <BookmarkSimple size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：打字 — Phosphor Keyboard（實心）。 */
+export function KeyboardSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <Keyboard size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：運動 — Phosphor PersonSimpleRun（實心）。 */
+export function RunnerSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <PersonSimpleRun size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：飲水 — Phosphor Drop（實心）。 */
+export function DropletSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <Drop size={size} weight="fill" className={className} />
+}
+
+/** 九宮格：上磅 — Phosphor Scales（實心）。 */
+export function ScaleSilhouetteIcon({ size = 28, className }: IconProps) {
+  return <Scales size={size} weight="fill" className={className} />
+}
+
+export type ExerciseIconKey =
+  | 'run'
+  | 'walk'
+  | 'hike'
+  | 'stairs'
+  | 'swim'
+  | 'bike'
+  | 'row'
+  | 'rope'
+  | 'hiit'
+  | 'dance'
+  | 'boxing'
+  | 'ski'
+  | 'dumbbell'
+  | 'barbell'
+  | 'squat'
+  | 'core'
+  | 'yoga'
+  | 'stretch'
+  | 'shuttle'
+  | 'basketball'
+  | 'football'
+  | 'tennis'
+  | 'pingpong'
+  | 'racket'
+  | 'golf'
+  | 'volleyball'
+  | 'housework'
+  | 'leaf'
+  | 'sup'
+  | 'cooking'
+  | 'carwash'
+  | 'baseball'
+  | 'bowling'
+  | 'snooker'
+  | 'skateboard'
+  | 'roller'
+
+/** 按 key 渲染對應嘅專業圖示（未知 key 用跑步兜底）。 */
+export function ExerciseIcon({
+  icon,
+  size = 24,
+  className,
+}: {
+  icon: ExerciseIconKey
+  size?: number
+  className?: string
+}) {
+  switch (icon) {
+    case 'walk':
+      return <PersonSimpleWalk size={size} weight="fill" className={className} />
+    case 'hike':
+      return <PersonSimpleHike size={size} weight="fill" className={className} />
+    case 'stairs':
+      return <MdStairs size={size} className={className} />
+    case 'swim':
+      return <PersonSimpleSwim size={size} weight="fill" className={className} />
+    case 'bike':
+      return <PersonSimpleBike size={size} weight="fill" className={className} />
+    case 'row':
+      return <MdRowing size={size} className={className} />
+    case 'rope':
+      return <MdSportsGymnastics size={size} className={className} />
+    case 'hiit':
+      return <MdBolt size={size} className={className} />
+    case 'dance':
+      return <PersonSimpleTaiChi size={size} weight="fill" className={className} />
+    case 'boxing':
+      return <MdSportsMma size={size} className={className} />
+    case 'ski':
+      return <PersonSimpleSki size={size} weight="fill" className={className} />
+    case 'dumbbell':
+      return <MdFitnessCenter size={size} className={className} />
+    case 'barbell':
+      return <Barbell size={size} weight="fill" className={className} />
+    case 'squat':
+      return <Barbell size={size} weight="fill" className={className} />
+    case 'core':
+      return <MdFitnessCenter size={size} className={className} />
+    case 'yoga':
+      return <MdSelfImprovement size={size} className={className} />
+    case 'stretch':
+      return <MdAccessibility size={size} className={className} />
+    case 'shuttle':
+      return <MdSportsTennis size={size} className={className} />
+    case 'basketball':
+      return <Basketball size={size} weight="fill" className={className} />
+    case 'football':
+      return <SoccerBall size={size} weight="fill" className={className} />
+    case 'tennis':
+      return <TennisBall size={size} weight="fill" className={className} />
+    case 'pingpong':
+      return <PingPong size={size} weight="fill" className={className} />
+    case 'racket':
+      return <MdSportsTennis size={size} className={className} />
+    case 'golf':
+      return <Golf size={size} weight="fill" className={className} />
+    case 'volleyball':
+      return <Volleyball size={size} weight="fill" className={className} />
+    case 'housework':
+      return <Broom size={size} weight="fill" className={className} />
+    case 'leaf':
+      return <Leaf size={size} weight="fill" className={className} />
+    case 'sup':
+      return <MdSurfing size={size} className={className} />
+    case 'cooking':
+      return <CookingPot size={size} weight="fill" className={className} />
+    case 'carwash':
+      return <MdLocalCarWash size={size} className={className} />
+    case 'baseball':
+      return <Baseball size={size} weight="fill" className={className} />
+    case 'bowling':
+      return <BowlingBall size={size} weight="fill" className={className} />
+    case 'snooker':
+      return <Circle size={size} weight="fill" className={className} />
+    case 'skateboard':
+      return <MdSurfing size={size} className={className} />
+    case 'roller':
+      return <MdIceSkating size={size} className={className} />
+    case 'run':
+    default:
+      return <PersonSimpleRun size={size} weight="fill" className={className} />
+  }
 }

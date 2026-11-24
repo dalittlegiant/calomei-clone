@@ -160,6 +160,27 @@ export interface ExerciseEntry {
   createdAt: number
 }
 
+/**
+ * v5 (2026-11-24, MET 運動資料庫)：收藏嘅運動。id = 內置運動 id
+ *（src/data/exercises.ts）或者自訂運動 id（custom_exercises）。
+ */
+export interface ExerciseFavorite {
+  id: string
+  createdAt: number
+}
+
+/**
+ * v5 (2026-11-24, MET 運動資料庫)：用戶自訂運動。kcalPer30Min 係
+ * 用戶自填、每 30 分鐘燒幾多 kcal（已經係佢自己嘅數，唔再按體重
+ * 換算）；記運動嗰陣燒咗 = kcalPer30Min × (分鐘 / 30)。
+ */
+export interface CustomExercise {
+  id: string
+  name: string
+  kcalPer30Min: number
+  createdAt: number
+}
+
 /** v1.7.0 body_fat_entries — one row per body-fat reading. */
 export interface BodyFatEntry {
   id: string
@@ -423,6 +444,8 @@ class CaLoMeiDb extends Dexie {
   recipes!: EntityTable<Recipe, 'id'>
   meal_plans!: EntityTable<MealPlanItem, 'id'>
   grocery_items!: EntityTable<GroceryItem, 'id'>
+  exercise_favorites!: EntityTable<ExerciseFavorite, 'id'>
+  custom_exercises!: EntityTable<CustomExercise, 'id'>
 
   constructor() {
     super('calomei')
@@ -491,6 +514,28 @@ class CaLoMeiDb extends Dexie {
       recipes: 'id, createdAt, isFavorite',
       meal_plans: 'id, recipeId, status',
       grocery_items: 'id, category, status, createdAt',
+    })
+    // v5 (2026-11-24, MET 運動資料庫)：只加 exercise_favorites 同
+    // custom_exercises 兩表，舊表零改動，v4 資料原樣開到。新表查詢
+    // 必須用已索引欄位（id／createdAt），2026-11-21 黑屏教訓。
+    // version(5).stores() 必須列出 FULL schema，唔係淨係 delta。
+    this.version(5).stores({
+      user_profiles: 'id',
+      food_entries: 'id, date, mealType, createdAt',
+      weight_entries: 'id, date',
+      saved_foods: 'id',
+      food_collections: 'id',
+      food_collection_items: 'id, collectionId',
+      water_entries: 'id, date',
+      exercise_entries: 'id, date',
+      body_fat_entries: 'id, date',
+      nutrition_target_overrides: 'id, effectiveFrom',
+      settings: 'key',
+      recipes: 'id, createdAt, isFavorite',
+      meal_plans: 'id, recipeId, status',
+      grocery_items: 'id, category, status, createdAt',
+      exercise_favorites: 'id, createdAt',
+      custom_exercises: 'id, createdAt',
     })
   }
 }

@@ -7,7 +7,7 @@ import { db, type VisionProviderConfig } from './db'
 
 export interface BackupData {
   app: 'calomei-clone'
-  backupVersion: 4
+  backupVersion: 5
   exportedAt: string
   user_profiles: unknown[]
   food_entries: unknown[]
@@ -24,6 +24,9 @@ export interface BackupData {
   recipes: unknown[]
   meal_plans: unknown[]
   grocery_items: unknown[]
+  /** v5 (2026-11-24): exercise favorites + custom exercises. */
+  exercise_favorites: unknown[]
+  custom_exercises: unknown[]
   settings: Array<{ key: string; value: string }>
 }
 
@@ -48,6 +51,8 @@ export async function exportBackup(
     recipes,
     mealPlans,
     groceryItems,
+    exerciseFavorites,
+    customExercises,
     settings,
   ] = await Promise.all([
     db.user_profiles.toArray(),
@@ -63,6 +68,8 @@ export async function exportBackup(
     db.recipes.toArray(),
     db.meal_plans.toArray(),
     db.grocery_items.toArray(),
+    db.exercise_favorites.toArray(),
+    db.custom_exercises.toArray(),
     db.settings.toArray(),
   ])
 
@@ -83,7 +90,7 @@ export async function exportBackup(
 
   return {
     app: 'calomei-clone',
-    backupVersion: 4,
+    backupVersion: 5,
     exportedAt: new Date().toISOString(),
     user_profiles: profiles,
     food_entries: entries,
@@ -98,6 +105,8 @@ export async function exportBackup(
     recipes,
     meal_plans: mealPlans,
     grocery_items: groceryItems,
+    exercise_favorites: exerciseFavorites,
+    custom_exercises: customExercises,
     settings: safeSettings,
   }
 }
@@ -117,6 +126,8 @@ export interface ImportResult {
     recipes: number
     mealPlans: number
     groceryItems: number
+    exerciseFavorites: number
+    customExercises: number
   }
   vision: VisionProviderConfig | null
 }
@@ -165,6 +176,8 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       db.recipes,
       db.meal_plans,
       db.grocery_items,
+      db.exercise_favorites,
+      db.custom_exercises,
       db.settings,
     ],
     async () => {
@@ -199,6 +212,14 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
         has('grocery_items')
           ? db.grocery_items.clear()
           : Promise.resolve(),
+        // v5: v4 之前嘅備份無 exercise_favorites／custom_exercises —
+        // has() guard 令舊備份匯入唔會清走現有嘅收藏／自訂運動。
+        has('exercise_favorites')
+          ? db.exercise_favorites.clear()
+          : Promise.resolve(),
+        has('custom_exercises')
+          ? db.custom_exercises.clear()
+          : Promise.resolve(),
         has('settings') ? db.settings.clear() : Promise.resolve(),
       ])
       const profiles = table('user_profiles')
@@ -214,6 +235,8 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       const recipes = table('recipes')
       const mealPlans = table('meal_plans')
       const groceryItems = table('grocery_items')
+      const exerciseFavorites = table('exercise_favorites')
+      const customExercises = table('custom_exercises')
       const settings = table('settings') as Array<{
         key: string
         value: string
@@ -279,6 +302,18 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
         await db.grocery_items.bulkPut(
           groceryItems as Parameters<typeof db.grocery_items.bulkPut>[0],
         )
+      // v4 之前嘅備份無呢兩表 — table() 返 []，上面 has() guard 亦
+      //  keep 返現有行。
+      if (exerciseFavorites.length > 0)
+        await db.exercise_favorites.bulkPut(
+          exerciseFavorites as Parameters<
+            typeof db.exercise_favorites.bulkPut
+          >[0],
+        )
+      if (customExercises.length > 0)
+        await db.custom_exercises.bulkPut(
+          customExercises as Parameters<typeof db.custom_exercises.bulkPut>[0],
+        )
       if (settings.length > 0) {
         // M5: if the imported vision row carries no API key, keep the one
         // this device already has instead of overwriting it with ''.
@@ -326,6 +361,8 @@ export async function importBackup(data: unknown): Promise<ImportResult> {
       recipes: table('recipes').length,
       mealPlans: table('meal_plans').length,
       groceryItems: table('grocery_items').length,
+      exerciseFavorites: table('exercise_favorites').length,
+      customExercises: table('custom_exercises').length,
     },
     vision,
   }

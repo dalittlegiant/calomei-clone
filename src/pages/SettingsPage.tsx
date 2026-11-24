@@ -4,6 +4,7 @@ import {
   db,
   DEFAULT_HEALTH_SHORTCUT_NAME,
   getHealthShortcutName,
+  getSetting,
   getTargetOverride,
   getTonePromptOverride,
   getVisionConfig,
@@ -83,6 +84,9 @@ export default function SettingsPage({
     DEFAULT_HEALTH_SHORTCUT_NAME,
   )
   const [dayStartInput, setDayStartInput] = useState('00:00')
+  /** 運動計入額度（2026-11-24）：開 = 運動燒咗嘅 kcal 打 72 折計入
+   * 今日上限；關 = 運動唔加額度（詳情頁結算顯示 +0 kcal）。 */
+  const [exerciseCounts, setExerciseCounts] = useState(true)
   const entries = useLiveQuery(() => db.food_entries.toArray(), [])
   const streaks = computeStreaks(
     entries ?? [],
@@ -112,6 +116,7 @@ export default function SettingsPage({
     })
     getHealthShortcutName().then(setShortcutName)
     getDayStart().then(setDayStartInput)
+    getSetting<boolean>('exercise_counts', true).then(setExerciseCounts)
   }, [])
 
   useEffect(() => {
@@ -164,6 +169,12 @@ export default function SettingsPage({
   async function saveDayStart() {
     await setDayStart(dayStartInput)
     flash('一日開始時間已儲存')
+  }
+
+  async function toggleExerciseCounts(v: boolean) {
+    setExerciseCounts(v)
+    await setSetting('exercise_counts', v)
+    flash(v ? '運動會計入今日額度（打 72 折）' : '運動唔會計入今日額度')
   }
 
   async function saveShortcutName() {
@@ -474,6 +485,29 @@ export default function SettingsPage({
           className="mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white"
         >
           儲存自訂目標
+        </button>
+      </GlassCard>
+
+      <GlassCard className="mt-4 p-4">
+        <button
+          type="button"
+          onClick={() => void toggleExerciseCounts(!exerciseCounts)}
+          aria-pressed={exerciseCounts}
+          className="pressable flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span>
+            <span className="block font-bold">運動計入額度</span>
+            <span className="mt-0.5 block text-sm font-normal text-white/50">
+              開：做完運動，燒咗嘅卡路里打 72 折加返入今日上限；關：運動唔加額度。
+            </span>
+          </span>
+          <span
+            className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors ${
+              exerciseCounts ? 'justify-end bg-[#14B8A6]' : 'bg-white/15'
+            }`}
+          >
+            <span className="h-5 w-5 rounded-full bg-white" />
+          </span>
         </button>
       </GlassCard>
 

@@ -31,6 +31,7 @@ import HomePage from './pages/HomePage'
 import ProgressPage from './pages/ProgressPage'
 import DeficitDetailPage from './pages/DeficitDetailPage'
 import MealPlannerPage from './pages/MealPlannerPage'
+import ExercisePage from './pages/ExercisePage'
 import AddSheet, { type SheetView } from './pages/AddSheet'
 
 type Tab = 'home' | 'records' | 'meal' | 'progress' | 'settings'
@@ -45,6 +46,7 @@ export default function App() {
   const [currentEntryId, setCurrentEntryId] = useState<string | null>(null)
   const [scanFlow, setScanFlow] = useState<ScanFlow | null>(null)
   const [deficitOpen, setDeficitOpen] = useState(false)
+  const [exerciseOpen, setExerciseOpen] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [vision, setVision] = useState<VisionProviderConfig>(
     DEFAULT_VISION_CONFIG,
@@ -106,6 +108,7 @@ export default function App() {
     setCurrentEntryId(null)
     setScanFlow(null)
     setDeficitOpen(false)
+    setExerciseOpen(false)
     setTab(t)
   }
 
@@ -113,6 +116,7 @@ export default function App() {
     setCurrentEntryId(null)
     setScanFlow(null)
     setDeficitOpen(false)
+    setExerciseOpen(false)
   }
 
   async function changeTone(toneId: string) {
@@ -134,7 +138,8 @@ export default function App() {
   }
 
   const tone = getToneInfo(profile.toneMode)
-  const inDetail = !!currentEntryId || !!scanFlow || deficitOpen
+  const inDetail =
+    !!currentEntryId || !!scanFlow || deficitOpen || exerciseOpen
   const homeActive = tab === 'home' && !inDetail
   const recordsActive = tab === 'records' || !!currentEntryId
   // Page transition key — overlay pages slide in from the right, tabs
@@ -145,8 +150,11 @@ export default function App() {
       ? 'scan'
       : deficitOpen
         ? 'deficit'
-        : tab
-  const isOverlay = !!currentEntryId || !!scanFlow || deficitOpen
+        : exerciseOpen
+          ? 'exercise'
+          : tab
+  const isOverlay =
+    !!currentEntryId || !!scanFlow || deficitOpen || exerciseOpen
 
   return (
     <MotionConfig reducedMotion="user">
@@ -278,12 +286,17 @@ export default function App() {
                 }}
                 onBack={() => setScanFlow(null)}
               />
+            ) : exerciseOpen ? (
+              <ExercisePage
+                onBack={() => setExerciseOpen(false)}
+                onDone={showToast}
+              />
             ) : tab === 'home' ? (
               <HomePage
                 profile={profile}
                 onOpen={setCurrentEntryId}
                 onAdd={() => openSheet('menu')}
-                onAddExercise={() => openSheet('exercise')}
+                onAddExercise={() => setExerciseOpen(true)}
               />
             ) : tab === 'records' ? (
               <HistoryPage profile={profile} onOpen={setCurrentEntryId} />
@@ -404,11 +417,11 @@ export default function App() {
 
       {/* FAB — narrow screens only; hidden while a meal result is open so it
           never sits on top of the result page's sticky bottom bar, and
-          hidden during a scan or on the deficit detail page for the same
-          reason (it used to float over their lower-right content). Also
-          hidden on the meal-planner tab, where the floating grocery CTA
-          sits in the same corner. */}
-      {!currentEntryId && !scanFlow && !deficitOpen && tab !== 'meal' && (
+          hidden during a scan, on the deficit detail page or on the
+          exercise page for the same reason (it used to float over their
+          lower-right content). Also hidden on the meal-planner tab, where
+          the floating grocery CTA sits in the same corner. */}
+      {!currentEntryId && !scanFlow && !deficitOpen && !exerciseOpen && tab !== 'meal' && (
         <button
           type="button"
           onClick={() => openSheet('menu')}
@@ -432,6 +445,15 @@ export default function App() {
           setSheetOpen(false)
           setCurrentEntryId(null)
           setScanFlow({ mode: 'text', initialFile: null })
+        }}
+        onScanLabel={() => {
+          setSheetOpen(false)
+          setCurrentEntryId(null)
+          setScanFlow({ mode: 'label', initialFile: null })
+        }}
+        onOpenExercise={() => {
+          setSheetOpen(false)
+          setExerciseOpen(true)
         }}
         onDone={showToast}
       />

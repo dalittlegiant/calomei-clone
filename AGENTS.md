@@ -87,6 +87,22 @@
 > fallback 糖／纖維／鈉 0＋單項食材清單）。`prompts.ts`／`vision.ts`／
 > `foodDb.ts`／`health.ts` 今次無郁，之後 `src/lib/` 恢復禁區。
 
+> 2026-11-24 一次性特批（MET 運動資料庫＋兩步記運動）：Kong 批准今次
+> 修改 `src/lib/db.ts`（Dexie v5：只加 exercise_favorites／
+> custom_exercises 兩表，舊表零改動）同 `src/lib/backup.ts`（備份 v5，
+> 包埋新表；匯入舊版備份唔清新表），以及新增 `src/data/exercises.ts`
+>（73 項香港常見運動 MET 資料庫）、`src/pages/ExercisePage.tsx`
+>（選擇頁＋刻度尺詳情頁）、`src/pages/AddSheet.tsx`（九宮格改剪影、
+> 運動掣開 ExercisePage、加掃描掣開營養標籤模式）、`src/App.tsx`
+>（ExercisePage overlay）、`src/pages/SettingsPage.tsx`（「運動計入
+> 額度」開關）、`src/pages/HomePage.tsx`（今日上限按運動 ×0.72 折後
+> 計，逐筆四捨五入；「運動燒咗」副標同赤字頁繼續用全數）。同日圖示
+> 換庫：九宮格＋運動圖示改用 @phosphor-icons/react（weight="fill"）
+> ＋ react-icons/md，手寫剪影 <path> 全部刪除；`ExercisePage` 列表
+> 容器本身已有 pb-28，碌到底最後一行唔會畀底部導航遮（已截圖驗證）。
+> `prompts.ts`／`vision.ts`／`foodDb.ts`／`health.ts` 今次無郁，之後
+> `src/lib/` 恢復禁區。
+
 ## 主頁捲動（2026-11-23，Kong 定案）
 
 - 主頁頂部 header（`App.tsx`）同日期列（`HomePage.tsx` week strip）**刻意

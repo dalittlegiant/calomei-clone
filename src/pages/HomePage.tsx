@@ -29,6 +29,7 @@ import {
   todayLogStartMs,
 } from '../lib/day'
 import { MEAL_LABELS, type MealType } from '../lib/image'
+import { allowanceKcalFor } from '../data/exercises'
 import {
   ActivityIcon,
   CameraIcon,
@@ -222,8 +223,27 @@ export default function HomePage({
     (a, e) => a + e.caloriesBurned,
     0,
   )
+  // 今日上限只計運動燒咗嘅 72%（2026-11-24，設定「運動計入額度」關閉
+  // 就 +0；逐筆四捨五入，同記運動詳情頁顯示嘅 +數一致）。「運動燒咗」
+  // 副標同赤字頁繼續用全數，唔受呢條影響。
+  const exerciseCountsRow = useLiveQuery(
+    () => db.settings.get('exercise_counts'),
+    [],
+  )
+  const countsTowardAllowance = (() => {
+    if (!exerciseCountsRow) return true
+    try {
+      return JSON.parse(exerciseCountsRow.value) as boolean
+    } catch {
+      return true
+    }
+  })()
+  const exerciseAllowanceKcal = (dayExercise ?? []).reduce(
+    (a, e) => a + allowanceKcalFor(e.caloriesBurned, countsTowardAllowance),
+    0,
+  )
 
-  const remaining = target.calories - totals.calories + exerciseKcal
+  const remaining = target.calories - totals.calories + exerciseAllowanceKcal
   const weekDays = last7LogDays(startMin)
   const dayKeysWithEntries = useMemo(
     () => new Set((entries ?? []).map((e) => logDayKey(e.date, startMin))),

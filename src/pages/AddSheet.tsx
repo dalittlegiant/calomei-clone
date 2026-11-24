@@ -1,6 +1,7 @@
 // Add sheet — 統一新增入口，照原 app「又食嘢？揀個方法認罪」
-// 8 格：影相 / 上載 / 搜尋 / 收藏 / 打字 / 運動 / 飲水 / 上磅
-// （掃描 barcode 唔做，Kong 2026-11-21 已 skip）
+// 9 格：影相 / 搜尋 / 掃描 / 上載 / 收藏 / 打字 / 運動 / 飲水 / 上磅
+// （2026-11-24：全部改用深色暖黑圓底＋琥珀金剪影 SVG，嚴禁 Emoji。
+// 掃描 = 影營養標籤（ScanPage label 模式）；運動開兩步記運動頁。）
 // 影相 / 上載用 <label> 包住隱藏 file input，撳落去直接開相機／相簿。
 
 import { useEffect, useRef, useState } from 'react'
@@ -9,6 +10,17 @@ import { db, type FoodComponent, type SavedFood } from '../lib/db'
 import { inferMealType } from '../lib/image'
 import { BOTTLE_ML } from '../lib/nutrition'
 import { GlassModal } from '../components/ui'
+import {
+  BarcodeSilhouetteIcon,
+  BookmarkSilhouetteIcon,
+  CameraSilhouetteIcon,
+  DropletSilhouetteIcon,
+  KeyboardSilhouetteIcon,
+  PhotoSilhouetteIcon,
+  RunnerSilhouetteIcon,
+  ScaleSilhouetteIcon,
+  SearchSilhouetteIcon,
+} from '../components/icons'
 import {
   dayStartMinutes,
   getDayStart,
@@ -20,13 +32,7 @@ import {
   type LocalFoodItem,
 } from '../lib/foodDb'
 
-export type SheetView =
-  | 'menu'
-  | 'search'
-  | 'saved'
-  | 'exercise'
-  | 'water'
-  | 'weigh'
+export type SheetView = 'menu' | 'search' | 'saved' | 'water' | 'weigh'
 
 interface Props {
   open: boolean
@@ -36,6 +42,10 @@ interface Props {
   onScanFile: (file: File) => void
   /** Text-only mode — App opens ScanPage in 打字 mode. */
   onScanText: () => void
+  /** Label mode — App opens ScanPage in 影營養標籤 mode. */
+  onScanLabel: () => void
+  /** Two-step log-exercise page — App opens ExercisePage. */
+  onOpenExercise: () => void
   /** Toast message after a successful quick add. */
   onDone: (msg: string) => void
 }
@@ -73,6 +83,8 @@ export default function AddSheet({
   onClose,
   onScanFile,
   onScanText,
+  onScanLabel,
+  onOpenExercise,
   onDone,
 }: Props) {
   const [view, setView] = useState<SheetView>(initialView)
@@ -86,11 +98,6 @@ export default function AddSheet({
   const [searchError, setSearchError] = useState(false)
   const [selectedFood, setSelectedFood] = useState<LocalFoodItem | null>(null)
   const [grams, setGrams] = useState('100')
-
-  // Exercise view
-  const [exName, setExName] = useState('')
-  const [exMinutes, setExMinutes] = useState('')
-  const [exKcal, setExKcal] = useState('')
 
   // Water view
   const [dayStart, setDayStart] = useState('00:00')
@@ -194,27 +201,6 @@ export default function AddSheet({
     }
   }
 
-  async function addExercise() {
-    const minutes = Number(exMinutes)
-    const kcal = Number(exKcal)
-    if (!exName.trim() || !minutes || minutes <= 0) return
-    const now = Date.now()
-    await db.exercise_entries.add({
-      id: crypto.randomUUID(),
-      name: exName.trim(),
-      exerciseType: '手動記錄',
-      durationMinutes: minutes,
-      caloriesBurned: kcal > 0 ? Math.round(kcal) : 0,
-      date: now,
-      createdAt: now,
-    })
-    setExName('')
-    setExMinutes('')
-    setExKcal('')
-    onDone(`運動已記錄：${exName.trim()} ${minutes} 分鐘`)
-    onClose()
-  }
-
   async function addWater(ml: number) {
     if (!ml || ml <= 0) return
     const now = Date.now()
@@ -268,11 +254,34 @@ export default function AddSheet({
 
   const titles: Record<SheetView, string> = {
     menu: '又食嘢？揀個方法認罪',
-    search: '🔍 搜尋食物（離線食物庫）',
-    saved: '⭐ 收藏',
-    exercise: '🏃 做咗運動？',
-    water: '💧 飲水',
-    weigh: '⚖️ 上磅',
+    search: '搜尋食物（離線食物庫）',
+    saved: '收藏',
+    water: '飲水',
+    weigh: '上磅',
+  }
+
+  /** 九宮格一格：深色暖黑圓底＋琥珀金剪影＋名。 */
+  function GridTile({
+    label,
+    onClick,
+    children,
+  }: {
+    label: string
+    onClick: () => void
+    children: React.ReactNode
+  }) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="pressable rounded-2xl glass-subcard p-4 text-center"
+      >
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#17140F] ring-1 ring-white/10">
+          {children}
+        </span>
+        <span className="mt-2 block font-bold">{label}</span>
+      </button>
+    )
   }
 
   return (
@@ -318,70 +327,45 @@ export default function AddSheet({
               onChange={(e) => onPickFile(e.target.files?.[0])}
             />
             <div className="mt-4 grid grid-cols-3 gap-3">
-              <button
-                type="button"
+              <GridTile
+                label="影相"
                 onClick={() => cameraRef.current?.click()}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
-                <span className="block text-3xl">📸</span>
-                <span className="mt-1 block font-bold">影相</span>
-              </button>
-              <button
-                type="button"
+                <CameraSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
+              <GridTile label="搜尋" onClick={() => setView('search')}>
+                <SearchSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
+              <GridTile label="掃描" onClick={onScanLabel}>
+                <BarcodeSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
+              <GridTile
+                label="上載"
                 onClick={() => galleryRef.current?.click()}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
               >
-                <span className="block text-3xl">🖼️</span>
-                <span className="mt-1 block font-bold">上載</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('search')}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
-              >
-                <span className="block text-3xl">🔍</span>
-                <span className="mt-1 block font-bold">搜尋</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('saved')}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
-              >
-                <span className="block text-3xl">⭐</span>
-                <span className="mt-1 block font-bold">收藏</span>
-              </button>
-              <button
-                type="button"
-                onClick={onScanText}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
-              >
-                <span className="block text-3xl">⌨️</span>
-                <span className="mt-1 block font-bold">打字</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('exercise')}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
-              >
-                <span className="block text-3xl">🏃</span>
-                <span className="mt-1 block font-bold">運動</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('water')}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
-              >
-                <span className="block text-3xl">💧</span>
-                <span className="mt-1 block font-bold">飲水</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('weigh')}
-                className="pressable rounded-2xl glass-subcard p-4 text-center"
-              >
-                <span className="block text-3xl">⚖️</span>
-                <span className="mt-1 block font-bold">上磅</span>
-              </button>
+                <PhotoSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
+              <GridTile label="收藏" onClick={() => setView('saved')}>
+                <BookmarkSilhouetteIcon
+                  size={28}
+                  className="text-[#FF9F0A]"
+                />
+              </GridTile>
+              <GridTile label="打字" onClick={onScanText}>
+                <KeyboardSilhouetteIcon
+                  size={28}
+                  className="text-[#FF9F0A]"
+                />
+              </GridTile>
+              <GridTile label="運動" onClick={onOpenExercise}>
+                <RunnerSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
+              <GridTile label="飲水" onClick={() => setView('water')}>
+                <DropletSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
+              <GridTile label="上磅" onClick={() => setView('weigh')}>
+                <ScaleSilhouetteIcon size={28} className="text-[#FF9F0A]" />
+              </GridTile>
             </div>
             <p className="mt-4 text-center text-xs text-white/40">
               個人版，冇收費、冇配額，想記幾多次都得。
@@ -534,44 +518,6 @@ export default function AddSheet({
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-
-        {view === 'exercise' && (
-          <div className="mt-3">
-            <input
-              type="text"
-              value={exName}
-              onChange={(e) => setExName(e.target.value)}
-              placeholder="做咩運動？例如：行路、跑步"
-              className="glass-input"
-            />
-            <div className="mt-2 flex gap-2">
-              <input
-                type="number"
-                inputMode="decimal"
-                value={exMinutes}
-                onChange={(e) => setExMinutes(e.target.value)}
-                placeholder="分鐘"
-                className="min-w-0 flex-1 glass-input"
-              />
-              <input
-                type="number"
-                inputMode="decimal"
-                value={exKcal}
-                onChange={(e) => setExKcal(e.target.value)}
-                placeholder="燒幾多 kcal（可選）"
-                className="min-w-0 flex-1 glass-input"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!exName.trim() || !Number(exMinutes)}
-              onClick={addExercise}
-              className="pressable mt-3 w-full rounded-2xl glass-cta-amber py-3 font-bold text-white disabled:opacity-40"
-            >
-              加入
-            </button>
           </div>
         )}
 
