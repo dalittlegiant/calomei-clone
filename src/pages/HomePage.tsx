@@ -14,7 +14,7 @@ import { PencilSimple } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
 import { DUR, easeOutExpo, springPill } from '../motion/presets'
 import { AnimatedNumber, fmt1dp } from '../motion/AnimatedNumber'
-import { db, type UserProfile } from '../lib/db'
+import { db, getHealthShortcutName, type UserProfile } from '../lib/db'
 import {
   activityFactor,
   BOTTLE_ML,
@@ -30,6 +30,7 @@ import {
   todayLogStartMs,
 } from '../lib/day'
 import { allowanceKcalFor } from '../data/exercises'
+import { isoDate, openHealthShortcut } from '../lib/health'
 import {
   ActivityIcon,
   CameraIcon,
@@ -326,11 +327,26 @@ export default function HomePage({
     })
   }
 
+  // 2026-11-25：由已刪嘅記錄頁搬過嚟——飲水同步全 app 得呢度有。
+  // 跟住畫面揀緊嗰日（通常係今日），唔係硬寫今日。
+  async function exportWater() {
+    if (waterTotal <= 0) return
+    const name = await getHealthShortcutName()
+    openHealthShortcut(name, {
+      type: 'water',
+      date: isoDate(viewStart),
+      amount_ml: waterTotal,
+    })
+    setWaterMsg(`飲水 ${waterTotal} ml 已交去捷徑「${name}」`)
+    window.setTimeout(() => setWaterMsg(null), 2500)
+  }
+
   const bottles = Math.floor(waterTotal / BOTTLE_ML)
   const targetBottles = Math.round(waterGoalMl / BOTTLE_ML)
   // 每日飲水目標 sheet（主頁飲水卡支鉛筆掣開；同飲水轉盤「你啲樽」
   // 共用 WaterGoalSheet，存同一個 settings `water_goal_ml`）。
   const [goalSheetOpen, setGoalSheetOpen] = useState(false)
+  const [waterMsg, setWaterMsg] = useState<string | null>(null)
   const ringFrac = Math.max(0, Math.min(1, remaining / target.calories))
   const ringC = 2 * Math.PI * 30
 
@@ -424,9 +440,19 @@ export default function HomePage({
                         </>
                       )}
                     </p>
-                    <p className="mt-0.5 text-sm whitespace-nowrap text-white/60">
+                    {/* 運動燒咗係全數，但上限只計 72% 折後數（見上面
+                        exerciseAllowanceKcal）：唔寫清楚會計唔掂條數——
+                        例如食咗 1651、目標 1600，運動燒 240 但只計入 173，
+                        仲剩就係 1600 − 1651 ＋ 173 ＝ 122（2026-11-25）。 */}
+                    <p className="mt-0.5 text-sm text-white/60">
                       {totals.calories} / {target.calories} kcal
-                      {exerciseKcal > 0 && ` · 運動燒咗 ${exerciseKcal} kcal`}
+                      {exerciseKcal > 0 &&
+                        ` · 運動燒咗 ${exerciseKcal} kcal${
+                          exerciseAllowanceKcal > 0 &&
+                          exerciseAllowanceKcal !== exerciseKcal
+                            ? `（計入 ${exerciseAllowanceKcal} kcal）`
+                            : ''
+                        }`}
                     </p>
                     <p className="mt-2 text-xs whitespace-nowrap text-white/40">
                       BMR {bmr} kcal · TDEE {tdee} kcal
@@ -567,6 +593,19 @@ export default function HomePage({
                     ? ` · 仲差 ${waterGoalMl.toLocaleString()} · 仙人掌？`
                     : ` · 仲差 ${Math.max(0, waterGoalMl - waterTotal).toLocaleString()} ml`}
                 </p>
+                <button
+                  type="button"
+                  disabled={waterTotal <= 0}
+                  onClick={exportWater}
+                  className="pressable mt-2 w-full rounded-2xl glass-subcard py-2.5 font-bold text-red-400 ring-1 ring-red-500/40 disabled:opacity-40"
+                >
+                  🍎 同步飲水去 Apple Health
+                </button>
+                {waterMsg && (
+                  <p className="mt-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm text-emerald-300">
+                    {waterMsg}
+                  </p>
+                )}
               </div>
 
               <div className="mt-2 grid grid-cols-3 gap-2">

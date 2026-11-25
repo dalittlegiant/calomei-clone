@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type UserProfile } from '../lib/db'
+import { db, getHealthShortcutName, type UserProfile } from '../lib/db'
 import {
   activityFactor,
   bmi,
@@ -23,6 +23,7 @@ import {
 } from '../lib/day'
 import { GlassCard } from '../components/ui'
 import { NutrientIcon } from '../components/nutrients'
+import { isoDate, openHealthShortcut } from '../lib/health'
 import {
   computeDeficit,
   deficitComment,
@@ -215,8 +216,26 @@ export default function ProgressPage({ profile, onOpenDeficit }: Props) {
     window.setTimeout(() => setBodyMsg(null), 2500)
   }
 
+  // 2026-11-25：由已刪嘅記錄頁搬過嚟——體重同步全 app 得呢度有。
+  async function exportWeight() {
+    const w = latestWeight
+    if (!w) return
+    const bf = latestBodyFat
+    const name = await getHealthShortcutName()
+    openHealthShortcut(name, {
+      type: 'weight',
+      date: isoDate(w.date),
+      weight_kg: w.weightKG,
+      // Omit the key entirely when there is no reading — the doc says
+      // 「無就唔傳」; sending an explicit null is not the same thing.
+      ...(bf ? { body_fat_percent: bf.bodyFatPercentage } : {}),
+    })
+    setBodyMsg(`體重 ${w.weightKG} kg 已交去捷徑「${name}」`)
+    window.setTimeout(() => setBodyMsg(null), 2500)
+  }
+
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-8 md:max-w-2xl">
+    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-2xl md:pb-12">
       {/* Nutrition chart */}
       <GlassCard className="mt-4 p-4">
         <div className="flex items-baseline justify-between">
@@ -459,6 +478,14 @@ export default function ProgressPage({ profile, onOpenDeficit }: Props) {
             )}
           </div>
         </div>
+        <button
+          type="button"
+          disabled={!latestWeight}
+          onClick={exportWeight}
+          className="pressable mt-3 w-full rounded-2xl glass-subcard py-2.5 font-bold text-red-400 ring-1 ring-red-500/40 disabled:opacity-40"
+        >
+          🍎 同步體重去 Apple Health
+        </button>
       </GlassCard>
 
       {/* Calorie deficit — tap the whole card to open the detail page. */}

@@ -264,7 +264,7 @@ export default function SettingsPage({
     : ''
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-10">
+    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:pb-12">
       {savedMsg && (
         <p className="mt-4 rounded-xl bg-emerald-500/15 px-3 py-2 text-center text-sm font-bold text-emerald-300">
           {savedMsg}

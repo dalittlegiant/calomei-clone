@@ -184,7 +184,7 @@ export default function ScanPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-8">
+    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:pb-12">
       <button
         type="button"
         onClick={onBack}

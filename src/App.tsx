@@ -20,12 +20,10 @@ import {
   HomeIcon,
   PlusIcon,
   ProgressIcon,
-  RecordsIcon,
   SettingsIcon,
 } from './components/icons'
 import ScanPage from './pages/ScanPage'
 import ResultPage from './pages/ResultPage'
-import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
 import HomePage from './pages/HomePage'
 import ProgressPage from './pages/ProgressPage'
@@ -34,7 +32,7 @@ import MealPlannerPage from './pages/MealPlannerPage'
 import ExercisePage from './pages/ExercisePage'
 import AddSheet, { type SheetView } from './pages/AddSheet'
 
-type Tab = 'home' | 'records' | 'meal' | 'progress' | 'settings'
+type Tab = 'home' | 'meal' | 'progress' | 'settings'
 
 interface ScanFlow {
   mode: 'food' | 'label'
@@ -140,8 +138,9 @@ export default function App() {
   const tone = getToneInfo(profile.toneMode)
   const inDetail =
     !!currentEntryId || !!scanFlow || deficitOpen || exerciseOpen
-  const homeActive = tab === 'home' && !inDetail
-  const recordsActive = tab === 'records' || !!currentEntryId
+  // 2026-11-25：記錄 tab 已刪——entry 只會喺主頁 feed 開，
+  // 所以睇緊 entry 嗰陣主頁繼續著燈（以前係記錄 tab 著燈）。
+  const homeActive = tab === 'home'
   // Page transition key — overlay pages slide in from the right, tabs
   // just fade (see DESIGN.md §Motion).
   const viewKey = currentEntryId
@@ -270,7 +269,7 @@ export default function App() {
                 onBack={() => setCurrentEntryId(null)}
                 onDeleted={() => {
                   setCurrentEntryId(null)
-                  setTab('records')
+                  setTab('home')
                 }}
               />
             ) : scanFlow ? (
@@ -298,15 +297,13 @@ export default function App() {
                 onAdd={() => openSheet('menu')}
                 onAddExercise={() => setExerciseOpen(true)}
               />
-            ) : tab === 'records' ? (
-              <HistoryPage profile={profile} onOpen={setCurrentEntryId} />
             ) : tab === 'meal' ? (
               <MealPlannerPage
                 profile={profile}
                 visionConfig={vision}
                 tonePrompt={tonePrompt}
                 onLogged={(id) => {
-                  setTab('records')
+                  setTab('home')
                   setCurrentEntryId(id)
                 }}
                 onToast={showToast}
@@ -337,19 +334,15 @@ export default function App() {
         </div>
       </div>
 
-      {/* Right-side floating glass rail — wide screens only (Duo opened). */}
-      <aside className="glass-nav fixed top-1/2 right-4 z-20 hidden -translate-y-1/2 flex-col items-center gap-1 rounded-full p-2 md:flex">
+      {/* Right-side floating glass rail — wide screens only (Duo opened).
+          translateZ(0): own compositing layer, same fast-scroll reason as
+          the bottom pill (2026-11-25). */}
+      <aside className="glass-nav fixed top-1/2 right-4 z-20 hidden -translate-y-1/2 [transform:translateZ(0)] flex-col items-center gap-1 rounded-full p-2 md:flex">
         <RailButton
           active={homeActive}
           label="主頁"
           icon={<HomeIcon size={20} />}
           onClick={() => goTab('home')}
-        />
-        <RailButton
-          active={recordsActive}
-          label="記錄"
-          icon={<RecordsIcon size={20} />}
-          onClick={() => goTab('records')}
         />
         <RailButton
           active={tab === 'meal'}
@@ -379,20 +372,17 @@ export default function App() {
         </button>
       </aside>
 
-      {/* Bottom floating glass pill tab bar — narrow screens only (folded). */}
-      <nav className="fixed bottom-[max(12px,env(safe-area-inset-bottom))] left-1/2 z-20 -translate-x-1/2 md:hidden">
+      {/* Bottom floating glass pill tab bar — narrow screens only (folded).
+          translateZ(0) puts the fixed bar on its own compositing layer so
+          iOS Safari repositions it during fast momentum scrolls instead of
+          leaving it painted mid-screen (2026-11-25). */}
+      <nav className="fixed bottom-[max(12px,env(safe-area-inset-bottom))] left-1/2 z-20 -translate-x-1/2 [transform:translateZ(0)] md:hidden">
         <div className="glass-nav flex items-center gap-1 rounded-full p-1.5">
           <NavButton
             active={homeActive}
             label="主頁"
             icon={<HomeIcon size={20} />}
             onClick={() => goTab('home')}
-          />
-          <NavButton
-            active={recordsActive}
-            label="記錄"
-            icon={<RecordsIcon size={20} />}
-            onClick={() => goTab('records')}
           />
           <NavButton
             active={tab === 'meal'}
@@ -426,7 +416,7 @@ export default function App() {
           type="button"
           onClick={() => openSheet('menu')}
           aria-label="新增"
-          className="glass-cta-amber pressable fixed right-4 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white md:hidden"
+          className="glass-cta-amber pressable fixed right-4 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white [transform:translateZ(0)] md:hidden"
         >
           <PlusIcon size={24} />
         </button>
@@ -456,7 +446,7 @@ export default function App() {
       />
 
       {toast && (
-        <div className="glass-nav fixed bottom-24 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-3xl px-4 py-2 text-center text-sm font-bold whitespace-normal break-words text-white md:bottom-8">
+        <div className="glass-nav fixed bottom-24 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-3xl px-4 py-2 text-center text-sm font-bold whitespace-normal break-words text-white [transform:translateZ(0)] md:bottom-8">
           {toast}
         </div>
       )}

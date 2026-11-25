@@ -465,8 +465,8 @@ export default function ResultPage({
       // 2026-11-25：AI 修正只改食材同數字，唔改標題——大標題係成碟名
       //（dish_name，例如邊爐拼盤），唔可以因為修正完第一樣食材變咗
       // 就打回佢個名。想改名撳標題自己改。
-      // Write the corrected numbers back in full — the home / records /
-      // progress pages all sum the TOP-LEVEL fields, so leaving them stale
+      // Write the corrected numbers back in full — the home / progress
+      // pages all sum the TOP-LEVEL fields, so leaving them stale
       // (only componentsJson + calories updated) shows pre-correction
       // numbers everywhere until 搞掂. Same shape as ScanPage's save.
       await db.food_entries.update(entryId, {
@@ -510,7 +510,7 @@ export default function ResultPage({
     editingIndex !== null ? current[editingIndex] : undefined
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-2xl">
+    <div className="mx-auto w-full max-w-lg px-4 pb-44 md:max-w-2xl md:pb-28">
       {/* 頂部食物相＋懸浮返回 */}
       {loadedEntry.imageDataUrl ? (
         <div className="relative mt-3">
@@ -534,7 +534,7 @@ export default function ResultPage({
           onClick={onBack}
           className="pressable mt-4 font-bold text-[#FF9F0A]"
         >
-          ← 返回記錄
+          ← 返回
         </button>
       )}
 
@@ -776,8 +776,11 @@ export default function ResultPage({
         </div>
       )}
 
-      {/* 底部懸浮固定操作欄 */}
-      <div className="sticky bottom-[max(88px,calc(env(safe-area-inset-bottom)+76px))] z-20 mt-6 md:bottom-6">
+      {/* 底部懸浮固定操作欄：fixed（唔係 sticky）——短頁 sticky 會停喺內容
+          尾、浮喺畫面中間；fixed 先至任何頁長都黐實底部導航上面。
+          bottom 88px = 導航高度＋間距；頁底 pb-44 留位，唔會遮住最後內容。
+          translateZ(0)：獨立合成層，iOS 快碌嗰陣唔會油喺中間（2026-11-25）。 */}
+      <div className="fixed inset-x-4 bottom-[max(88px,calc(env(safe-area-inset-bottom)+76px))] z-20 [transform:translateZ(0)] md:inset-x-auto md:bottom-6 md:left-[calc(50%-56px)] md:w-full md:max-w-2xl md:-translate-x-1/2">
         <div className="glass-nav flex gap-2 rounded-full p-2">
           <button
             type="button"

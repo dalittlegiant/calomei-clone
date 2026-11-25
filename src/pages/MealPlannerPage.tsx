@@ -117,6 +117,11 @@ export default function MealPlannerPage({
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [prefs, setPrefs] = useState<CookingPrefs | null>(null)
   const [prefsDraft, setPrefsDraft] = useState<CookingPrefs | null>(null)
+  // 偏好數字欄用字串草稿：number 受控輸入一清空格就彈返 1
+  //（`Number('') || 1` + clamp 即刻寫返 state），用戶逐字改唔到數字；
+  // 字串草稿可以留空，儲存嗰陣先 parse＋clamp。
+  const [servingsText, setServingsText] = useState('')
+  const [mealsText, setMealsText] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [genMsg, setGenMsg] = useState<string | null>(null)
@@ -693,7 +698,7 @@ export default function MealPlannerPage({
   const selectedCount = selected.size
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-28 md:max-w-2xl md:pb-12">
+    <div className="mx-auto w-full max-w-lg px-4 pb-44 md:max-w-2xl md:pb-28">
       {/* 頂部：分段膠囊（揀菜／買餸／開爐）＋廚房偏好小圓掣 */}
       <div className="mt-3 flex items-center gap-2">
         <div className="glass-nav flex flex-1 items-center rounded-full p-1">
@@ -727,6 +732,8 @@ export default function MealPlannerPage({
           type="button"
           onClick={() => {
             setPrefsDraft(prefs)
+            setServingsText(String(prefs?.defaultServings ?? 2))
+            setMealsText(String(prefs?.defaultMeals ?? 3))
             setPrefsOpen(true)
           }}
           aria-label="廚房偏好"
@@ -871,10 +878,21 @@ export default function MealPlannerPage({
             </GlassCard>
           ) : shownRecipes.length === 0 ? (
             <GlassCard className="mt-4 p-5 text-center">
-              <p className="font-bold">收藏庫仲係空嘅</p>
-              <p className="mt-1 text-sm text-white/50">
-                喺菜卡撳 ★ 就可以收藏常煮嘅餸。
-              </p>
+              {libraryTab === 'fav' ? (
+                <>
+                  <p className="font-bold">收藏庫仲係空嘅</p>
+                  <p className="mt-1 text-sm text-white/50">
+                    喺菜卡撳 ★ 就可以收藏常煮嘅餸。
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold">今期推薦已經收藏晒</p>
+                  <p className="mt-1 text-sm text-white/50">
+                    呢期嘅推薦全部喺「常煮收藏庫」嗰邊，或者撳上面再推送多幾款。
+                  </p>
+                </>
+              )}
             </GlassCard>
           ) : (
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1215,9 +1233,11 @@ export default function MealPlannerPage({
         </div>
       )}
 
-      {/* 底部懸浮行動條：Plan 已選 → 生成買餸清單 */}
+      {/* 底部懸浮行動條：Plan 已選 → 生成買餸清單。fixed（唔係 sticky），
+          原因同 ResultPage 底部欄一樣：短頁 sticky 會停喺內容尾浮喺中間；
+          頁底 pb-44 留位；translateZ(0) 獨立合成層（2026-11-25）。 */}
       {stage === 'plan' && selectedCount > 0 && (
-        <div className="sticky bottom-[max(88px,calc(env(safe-area-inset-bottom)+76px))] z-20 mt-6 md:bottom-6">
+        <div className="fixed inset-x-4 bottom-[max(88px,calc(env(safe-area-inset-bottom)+76px))] z-20 [transform:translateZ(0)] md:inset-x-auto md:bottom-6 md:left-[calc(50%-56px)] md:w-full md:max-w-2xl md:-translate-x-1/2">
           <div className="glass-nav flex gap-2 rounded-full p-2">
             <GlassButton
               variant="amber"
@@ -1307,15 +1327,9 @@ export default function MealPlannerPage({
                   inputMode="numeric"
                   min={1}
                   max={8}
-                  value={prefsDraft.defaultServings}
+                  value={servingsText}
                   onChange={(e) =>
-                    setPrefsDraft({
-                      ...prefsDraft,
-                      defaultServings: Math.min(
-                        8,
-                        Math.max(1, Number(e.target.value) || 1),
-                      ),
-                    })
+                    setServingsText(e.target.value.replace(/\D/g, ''))
                   }
                   className="glass-input mt-2"
                 />
@@ -1327,15 +1341,9 @@ export default function MealPlannerPage({
                   inputMode="numeric"
                   min={1}
                   max={7}
-                  value={prefsDraft.defaultMeals}
+                  value={mealsText}
                   onChange={(e) =>
-                    setPrefsDraft({
-                      ...prefsDraft,
-                      defaultMeals: Math.min(
-                        7,
-                        Math.max(1, Number(e.target.value) || 1),
-                      ),
-                    })
+                    setMealsText(e.target.value.replace(/\D/g, ''))
                   }
                   className="glass-input mt-2"
                 />
@@ -1344,8 +1352,28 @@ export default function MealPlannerPage({
             <GlassButton
               variant="amber"
               onClick={async () => {
-                await setCookingPrefs(prefsDraft)
-                setPrefs(prefsDraft)
+                // 數字欄儲存嗰陣先 parse＋clamp：留空／0／打錯字就沿用舊值。
+                const next: CookingPrefs = {
+                  ...prefsDraft,
+                  defaultServings: Math.min(
+                    8,
+                    Math.max(
+                      1,
+                      parseInt(servingsText, 10) ||
+                        prefs?.defaultServings ||
+                        2,
+                    ),
+                  ),
+                  defaultMeals: Math.min(
+                    7,
+                    Math.max(
+                      1,
+                      parseInt(mealsText, 10) || prefs?.defaultMeals || 3,
+                    ),
+                  ),
+                }
+                await setCookingPrefs(next)
+                setPrefs(next)
                 setPrefsOpen(false)
               }}
               className="pressable mt-5 min-h-[52px] w-full rounded-full py-3"
