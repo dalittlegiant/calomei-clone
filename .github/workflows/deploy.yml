@@ -2,6 +2,14 @@
 # Push to main -> build -> deploy. No secrets needed: the workflow uses the
 # built-in GITHUB_TOKEN via the official Pages actions.
 #
+# 2026-11-25: upgraded the three Pages actions (configure-pages v5->v6,
+# upload-pages-artifact v3->v5, deploy-pages v4->v5). The old pairing failed
+# three runs in a row at the Deploy step with "No artifacts named
+# 'github-pages' were found" even though Upload reported success — the
+# v3 uploader + v4 deployer against the current artifact backend. v5 also
+# moves off Node 20 (the deprecation warning in the logs). dist has no
+# dotfiles, so the v4 hidden-files change does not affect us.
+#
 # One-time repo setup (owner):
 #   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
 
@@ -44,13 +52,13 @@ jobs:
         run: npm run build
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
