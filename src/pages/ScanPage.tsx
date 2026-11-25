@@ -1,18 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { db, type UserProfile, type VisionProviderConfig } from '../lib/db'
-import {
-  compressImage,
-  inferMealType,
-  MEAL_LABELS,
-  placeholderImageBase64,
-  type MealType,
-} from '../lib/image'
+import { compressImage, inferMealType } from '../lib/image'
 import { scanFood, scanNutritionLabel } from '../lib/vision'
 import { getToneInfo } from '../config/prompts'
 import { GlassButton } from '../components/ui'
 
-type ScanMode = 'food' | 'label' | 'text'
+// 2026-11-25：模式由出面九宮格掣決定（影相＝food、掃描＝label），
+// ScanPage 唔再有 3 模式切換；打字改行 AddSheet 快入彈窗。
+type ScanMode = 'food' | 'label'
 
 interface Props {
   profile: UserProfile
@@ -36,8 +32,10 @@ export default function ScanPage({
 }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
-  const [mode, setMode] = useState<ScanMode>(initialMode ?? 'food')
-  const [mealType, setMealType] = useState<MealType>(() => inferMealType())
+  // 模式入嚟嗰陣已經定咗（影相 food／掃描 label），呢頁唔再切換。
+  const mode: ScanMode = initialMode ?? 'food'
+  // 2026-11-25：早／午／晚餐類型取消——唔再問邊餐，記錄嗰陣按時間
+  // 推斷（inferMealType）存入去就算，畫面唔顯示。
   const [description, setDescription] = useState('')
   const [scanning, setScanning] = useState(false)
   // Live progress line while the model works (attempts / retries) — the
@@ -74,23 +72,16 @@ export default function ScanPage({
       setError('未設定 API Key，請先去「設定」輸入 OpenRouter / OpenAI / Gemini 嘅 key。')
       return
     }
-    if (mode === 'text' && !description.trim()) {
-      setError('打低你食咗咩先，AI 先估到。')
-      return
-    }
-    if (mode !== 'text' && !file) return
+    if (!file) return
     setScanning(true)
     setError(null)
     const entryId = crypto.randomUUID()
     try {
-      // Text mode: no photo — a 1×1 placeholder goes to the API and the
-      // estimate comes purely from the typed description (textOnly).
-      const compressed =
-        mode === 'text' ? null : await compressImage(file as File)
+      const compressed = await compressImage(file as File)
       const now = Date.now()
       await db.food_entries.add({
         id: entryId,
-        name: mode === 'text' ? '打字輸入…' : '掃描中…',
+        name: '掃描中…',
         calories: 0,
         proteinG: 0,
         carbsG: 0,
@@ -99,20 +90,19 @@ export default function ScanPage({
         fiberG: 0,
         sodiumMg: 0,
         servingSize: '',
-        mealType,
+        mealType: inferMealType(),
         date: now,
         createdAt: now,
-        imageDataUrl: compressed?.dataUrl ?? null,
+        imageDataUrl: compressed.dataUrl,
         scanStatus: 'scanning',
         rebuttable: true,
       })
       const request = {
-        image_base64: compressed?.base64 ?? placeholderImageBase64(),
+        image_base64: compressed.base64,
         food_description: description.trim() || null,
-        meal_type: mealType,
+        meal_type: inferMealType(),
         region: 'hk',
         tone_mode: tone.apiValue,
-        textOnly: mode === 'text',
       }
       // v1.7.0 previous_roasts: today's earlier roasts, so the model does
       // not repeat the same roast. Label mode does not need it.
@@ -158,8 +148,11 @@ export default function ScanPage({
         isExcluded: false,
       }))
       const first = components[0]
+      // 2026-11-25：大標題用 AI 起嘅成碟名（dish_name，例如邊爐拼盤），
+      // 唔再拎第一樣食材（例如生菜）嚟做；AI 無畀先退返第一樣食材。
+      const dishName = result.dish_name?.trim() || undefined
       await db.food_entries.update(entryId, {
-        name: first?.nameZH ?? '未知食物',
+        name: dishName ?? first?.nameZH ?? '未知食物',
         calories: result.total_calories,
         proteinG: round1(
           components.reduce((a, c) => a + c.proteinG, 0),
@@ -177,7 +170,7 @@ export default function ScanPage({
         roastComment: result.roast_comment,
         roastEmoji: tone.emoji,
         rebuttable: result.rebuttable ?? true,
-        aiOriginalName: first?.nameZH ?? null,
+        aiOriginalName: dishName ?? first?.nameZH ?? null,
         aiOriginalComponentsJson: JSON.stringify(components),
       })
       onScanned(entryId)
@@ -215,15 +208,7 @@ export default function ScanPage({
         onChange={(e) => onPick(e.target.files?.[0])}
       />
 
-      {mode === 'text' ? (
-        <div className="mt-6 rounded-3xl border-2 border-dashed border-[#FF9F0A]/40 bg-white/[0.04] p-8 text-center backdrop-blur-xl">
-          <div className="text-5xl">⌨️</div>
-          <p className="mt-3 text-lg font-bold">打字認罪</p>
-          <p className="mt-1 text-sm text-white/50">
-            冇相都得 — 打低你食咗咩，AI 會照文字估卡路里
-          </p>
-        </div>
-      ) : !preview ? (
+      {!preview ? (
         <div className="mt-6 rounded-3xl border-2 border-dashed border-[#FF9F0A]/40 bg-white/[0.04] p-8 text-center backdrop-blur-xl">
           <div className="text-5xl">{mode === 'label' ? '🏷️' : '📸'}</div>
           <p className="mt-3 text-lg font-bold">
@@ -295,51 +280,9 @@ export default function ScanPage({
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        {(
-          [
-            { id: 'food', label: '🍽️ 影食物', hint: '認食物、計卡路里' },
-            { id: 'label', label: '🏷️ 影營養標籤', hint: '讀包裝背面數字' },
-            { id: 'text', label: '⌨️ 打字', hint: '冇相，打字估算' },
-          ] as Array<{ id: ScanMode; label: string; hint: string }>
-        ).map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMode(m.id)}
-            className={`pressable rounded-2xl border-2 p-3 text-left ${
-              mode === m.id
-                ? 'border-[#FF9F0A] bg-[#FF9F0A]/15'
-                : 'border-white/15 glass-subcard'
-            }`}
-          >
-            <span className="block font-bold">{m.label}</span>
-            <span className="block text-xs text-white/50">{m.hint}</span>
-          </button>
-        ))}
-      </div>
-
       <div className="mt-4 glass-card p-4">
-        <label className="text-sm font-bold text-white/60">邊餐？</label>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {(Object.keys(MEAL_LABELS) as MealType[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMealType(m)}
-              className={`pressable rounded-xl py-2 font-bold ${
-                mealType === m
-                  ? 'glass-cta-amber text-white'
-                  : 'bg-white/[0.06] text-white/60'
-              }`}
-            >
-              {MEAL_LABELS[m]}
-            </button>
-          ))}
-        </div>
-
-        <label className="mt-4 block text-sm font-bold text-white/60">
-          {mode === 'text' ? '食咗咩？' : '補充（可選）'}
+        <label className="block text-sm font-bold text-white/60">
+          補充（可選）
         </label>
         <input
           type="text"
@@ -348,9 +291,7 @@ export default function ScanPage({
           placeholder={
             mode === 'label'
               ? '例如：產品名：出前一丁麻油味'
-              : mode === 'text'
-                ? '例如：叉燒飯一碟，加凍檸茶'
-                : '例如：食咗一半、走甜、加飯…'
+              : '例如：食咗一半、走甜、加飯…'
           }
           className="mt-1 glass-input"
         />
@@ -364,10 +305,7 @@ export default function ScanPage({
 
         <GlassButton
           variant="amber"
-          disabled={
-            scanning ||
-            (mode === 'text' ? !description.trim() : !file)
-          }
+          disabled={scanning || !file}
           onClick={onScan}
           className="pressable mt-4 w-full rounded-2xl py-3 text-lg"
         >
@@ -375,9 +313,7 @@ export default function ScanPage({
             ? '分析緊…請稍候'
             : mode === 'label'
               ? '🔍 讀營養標籤'
-              : mode === 'text'
-                ? '🔍 用文字估算'
-                : '🔍 分析呢餐'}
+              : '🔍 分析呢餐'}
         </GlassButton>
 
         {error && (
@@ -390,11 +326,9 @@ export default function ScanPage({
             {scanProgress}
           </p>
         )}
-        {mode !== 'text' && (
-          <p className="mt-3 text-center text-xs text-white/40">
-            相片會壓縮到最長邊 1024px、JPEG 70% 先上傳
-          </p>
-        )}
+        <p className="mt-3 text-center text-xs text-white/40">
+          相片會壓縮到最長邊 1024px、JPEG 70% 先上傳
+        </p>
       </div>
     </div>
   )

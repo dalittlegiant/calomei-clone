@@ -32,6 +32,11 @@ export interface FoodScanResult {
   food_items: ScannedFoodItem[]
   total_calories: number
   roast_comment: string
+  /** v2 (2026-11-25): the name of the whole dish/plate, e.g. 邊爐拼盤 —
+   * NOT the first ingredient. Optional: older results and the
+   * json_object fallback may omit it; callers fall back to the first
+   * item's name. */
+  dish_name?: string
   /** v1.7.0: whether this roast can be rebutted. Default true when absent. */
   rebuttable?: boolean
 }
@@ -106,8 +111,9 @@ export const FOOD_SCAN_SCHEMA = {
     food_items: { type: 'array', items: SCANNED_ITEM_SCHEMA },
     total_calories: { type: 'integer', minimum: 0 },
     roast_comment: { type: 'string' },
+    dish_name: { type: 'string' },
   },
-  required: ['food_items', 'total_calories', 'roast_comment'],
+  required: ['food_items', 'total_calories', 'roast_comment', 'dish_name'],
   additionalProperties: false,
 } as const
 
@@ -239,6 +245,11 @@ function normalizeItems(items: ScannedFoodItem[]): ScannedFoodItem[] {
 function isFoodScanResult(x: unknown): x is FoodScanResult {
   if (!isRecord(x)) return false
   if (!Array.isArray(x.food_items) || !x.food_items.every(isScannedItem))
+    return false
+  if (
+    x.dish_name !== undefined &&
+    typeof x.dish_name !== 'string'
+  )
     return false
   if (
     x.rebuttable !== undefined &&

@@ -31,7 +31,6 @@ import {
 import IngredientSheet, { type IngredientPatch } from './IngredientSheet'
 import AddIngredientModal from './AddIngredientModal'
 import {
-  fmtMealTime,
   fmtMultiplier,
   parseGrams,
   pickNutrients,
@@ -292,10 +291,12 @@ export default function ResultPage({
 
   async function onSave() {
     const kept = current.filter((i) => !i.isExcluded)
+    // 2026-11-25：標題唔再由第一樣食材推返——大標題而家係 AI 起嘅成碟
+    // 名（dish_name，例如邊爐拼盤），撳「搞掂」唔可以將佢打回生菜。
+    // title state 本身就係碟名（未改過就等於 entry.name；改過就係用戶
+    // 親手改嘅名），直接用佢。
     await db.food_entries.update(entryId, {
-      name: titleEditedRef.current
-        ? title
-        : (kept[0]?.nameZH ?? (title || loadedEntry.name)),
+      name: title || loadedEntry.name,
       calories: totals.calories,
       proteinG: totals.proteinG,
       carbsG: totals.carbsG,
@@ -461,13 +462,14 @@ export default function ResultPage({
       setItems(next)
       setBaseItems(next)
       setMultiplier(1)
-      if (!titleEditedRef.current) setTitle(next[0]?.nameZH ?? title)
+      // 2026-11-25：AI 修正只改食材同數字，唔改標題——大標題係成碟名
+      //（dish_name，例如邊爐拼盤），唔可以因為修正完第一樣食材變咗
+      // 就打回佢個名。想改名撳標題自己改。
       // Write the corrected numbers back in full — the home / records /
       // progress pages all sum the TOP-LEVEL fields, so leaving them stale
       // (only componentsJson + calories updated) shows pre-correction
       // numbers everywhere until 搞掂. Same shape as ScanPage's save.
       await db.food_entries.update(entryId, {
-        name: next[0]?.nameZH ?? loadedEntry.name,
         calories: result.total_calories,
         proteinG: round1(next.reduce((a, c) => a + c.proteinG, 0)),
         carbsG: round1(next.reduce((a, c) => a + c.carbsG, 0)),
@@ -498,7 +500,11 @@ export default function ResultPage({
     onDeleted()
   }
 
-  const mealTime = fmtMealTime(loadedEntry.mealType, loadedEntry.date)
+  // 2026-11-25：早／午／晚餐類型取消——呢度只顯示時間。
+  const mealTime = new Date(loadedEntry.date).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
   const displayTitle = title || loadedEntry.name
   const editingItem =
     editingIndex !== null ? current[editingIndex] : undefined

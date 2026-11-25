@@ -129,6 +129,62 @@
 > `olderCount` 查詢刪除，Dexie 窗口由 30 日收窄到日期列 7 日。
 > 記錄頁（HistoryPage）唔郁——佢本身就係用嚟睇晒所有日子。
 
+> 2026-11-25（快入彈窗＋掃描直出相機＋飲水目標鉛筆）：今次**無郁
+> `src/lib/` 同 `src/config/prompts.ts`**，唔需要特批。新增
+> `src/pages/textScan.ts`（打字估算共用流程：ScanPage 打字分支
+> 同 AddSheet 打字快入彈窗共用，`scanFood` textOnly，entry 形狀
+> 同失敗清理同 ScanPage 原本一樣）、`src/pages/WaterGoalSheet.tsx`
+> （每日飲水目標底部彈窗：杯／毫升切換，杯 ±250 ml、毫升 ±100 ml，
+> 500–5000 ml，存 settings `water_goal_ml`）；改寫
+> `src/pages/AddSheet.tsx`（打字快入 view、掃描專用相機 input 連
+> mode 'label'、`onScanFile(file, mode?)`）、`src/App.tsx`
+> （mode 經 `scanFlow.mode` 傳去 ScanPage；`onScanText`／
+> `onScanLabel` 已死，刪除）、`src/pages/ScanPage.tsx`（打字分支
+> 改行 `runTextScan`，其餘原封不動；3 模式切換保留）、
+> `src/pages/WaterPanel.tsx`（「你啲樽」改開共用 sheet）、
+> `src/pages/HomePage.tsx`（飲水卡標題列目標 badge 隔籬加鉛筆掣）。
+> 設計記錄見 DESIGN.md §14。注意：鉛筆掣放喺標題列目標 badge
+> 隔籬（`0 / 4 樽` 嗰行 390px 已經滿，唔夠位加掣）；確定掣用
+> 湖水綠（同飲水卡 +1 樽掣一樣，係水嘅主題色）；`dailyWaterGoalMl`
+> 即係現有 settings key `water_goal_ml`，唔另開新 key。
+>
+> 2026-11-25（取消餐類＋ScanPage 模式切換＋收藏 Library）：Kong
+> 決定——(1) 早／午／晚餐三個類型成個 app 刪走（無咩用）：打字快入、
+> ScanPage、搜尋調整面板、煮飯 Log 嘅「邊餐？」選擇刪除；主頁案底
+> 卡、記錄頁、結果頁只顯示時間；記錄頁餐類篩選膠囊成組刪除。
+> 記錄寫入繼續用 `inferMealType()` 存入 `mealType`（API＋舊記錄格式
+> 唔變，Dexie 零改動）。(2) ScanPage 嘅 3 模式切換成組刪除——模式
+> 改由九宮格掣決定（影相 food／掃描 label／打字快入彈窗），重覆咗；
+> **呢個係 Kong 明確決定，取代上面「影食物／影營養標籤模式切換
+> 必須完整保留」嗰條鐵律嘅 ScanPage 切換 UI 部分**——切換功能本身
+> 保留（喺九宮格），刪走嘅係 ScanPage 入面重覆嗰組掣；兩個模式
+> （food／label）同打字快入彈窗繼續正常運作。`ScanFlow`／`ScanMode`
+> 收窄到 `'food' | 'label'`；`fmtMealTime` 由 `resultUtils.ts` 刪除，
+> ResultPage 直接顯示時間。(3) 收藏 view 升級做 Library：
+> `AddSheet.tsx` 搜尋框（按名篩選）＋排序膠囊（最新／最常食／卡路里
+> ↑／↓）＋「共 N 樣」計數；每張卡鉛筆掣開行內編輯面板（名稱／份量
+> ／卡路里／蛋白質／碳水／脂肪／糖／纖維／鈉；數字欄留空或打錯字
+> 沿用舊值；營養總數有改就按新總數起返單項 `componentsJson`，只改
+> 名／份量保留原有分解）；「刪除收藏」兩撳確認；舊嘅卡底細字刪除
+> 連結刪除。設計記錄見 DESIGN.md §15。今次**無郁 `src/lib/` 同
+> `src/config/prompts.ts`**，唔需要特批。
+>
+> 2026-11-25（AI 起碟名 dish_name）：Kong 影完邊爐拼盤，大標題拎
+> 咗第一樣食材（生菜）嚟做，要求 AI 起埋成碟嘅名。**今次一次性
+> 特批郁 lib**：`src/lib/vision.ts`（`FoodScanResult` 加可選
+> `dish_name?: string`；`FOOD_SCAN_SCHEMA` 加 `dish_name` 必填字串，
+> 嚴格模式迫模型一定要出；`isFoodScanResult` 當佢可選——json_object
+> 後備路徑漏咗都照過，callers 退返第一樣食材）＋
+> `src/config/prompts.ts`（`SHARED_FOOD_RULES` 加一句：dish_name 寫
+> 成碟嘢嘅總名，例如邊爐拼盤，唔好寫第一樣食材；得一樣嘢寫嗰樣嘢；
+> 標籤模式寫產品名——六個語氣共用同一條規則）。頁面層：
+> `ScanPage.tsx`／`textScan.ts` 用 `dish_name?.trim()` 做 entry 名，
+> 無先退返第一樣食材，`aiOriginalName` 都係碟名；
+> `ResultPage.tsx` 兩個陷阱一併修好——`onSave`（搞掂）唔再由第一樣
+> 未剔走嘅食材推返個名，直接用畫面標題；`onCorrect`（AI 修正）唔
+> 再郁標題（修正只改食材同數字，DB update 刪走 `name:`）。設計記
+> 錄見 DESIGN.md §16。特批完結，lib 再次禁區。
+
 ## 主頁捲動（2026-11-23，Kong 定案）
 
 - 主頁頂部 header（`App.tsx`）同日期列（`HomePage.tsx` week strip）**刻意

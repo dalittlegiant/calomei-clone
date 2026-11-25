@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { PencilSimple } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
 import { DUR, easeOutExpo, springPill } from '../motion/presets'
 import { AnimatedNumber, fmt1dp } from '../motion/AnimatedNumber'
@@ -28,7 +29,6 @@ import {
   logDayKey,
   todayLogStartMs,
 } from '../lib/day'
-import { MEAL_LABELS, type MealType } from '../lib/image'
 import { allowanceKcalFor } from '../data/exercises'
 import {
   ActivityIcon,
@@ -41,6 +41,7 @@ import {
   type NutrientKey,
 } from '../components/nutrients'
 import { GlassButton } from '../components/ui'
+import WaterGoalSheet from './WaterGoalSheet'
 
 /** 細圓圈進度環 — 跟大卡路里火焰圓環同一套 SVG 做法（細一號，64px）。
  * 無 icon 就數值喺圓圈中間；主頁營養格傳 icon 入去（圓圈入面係營養素
@@ -327,6 +328,9 @@ export default function HomePage({
 
   const bottles = Math.floor(waterTotal / BOTTLE_ML)
   const targetBottles = Math.round(waterGoalMl / BOTTLE_ML)
+  // 每日飲水目標 sheet（主頁飲水卡支鉛筆掣開；同飲水轉盤「你啲樽」
+  // 共用 WaterGoalSheet，存同一個 settings `water_goal_ml`）。
+  const [goalSheetOpen, setGoalSheetOpen] = useState(false)
   const ringFrac = Math.max(0, Math.min(1, remaining / target.calories))
   const ringC = 2 * Math.PI * 30
 
@@ -499,8 +503,22 @@ export default function HomePage({
                     <DropletIcon size={18} className="text-[#14B8A6]" />
                     飲水
                   </h3>
-                  <span className="text-xs whitespace-nowrap text-white/40">
-                    目標 {targetBottles} 樽 · {waterGoalMl.toLocaleString()} ml
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-xs whitespace-nowrap text-white/40">
+                      目標 {targetBottles} 樽 · {waterGoalMl.toLocaleString()} ml
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setGoalSheetOpen(true)}
+                      aria-label="每日飲水目標"
+                      className="pressable flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.07] ring-1 ring-white/10"
+                    >
+                      <PencilSimple
+                        size={14}
+                        weight="fill"
+                        className="text-[#8FB8D8]"
+                      />
+                    </button>
                   </span>
                 </div>
                 <div className="relative mt-3 flex items-end justify-between gap-2">
@@ -693,7 +711,6 @@ export default function HomePage({
                           {e.name}
                         </span>
                         <span className="block text-sm whitespace-nowrap text-white/50">
-                          {MEAL_LABELS[e.mealType as MealType] ?? e.mealType} ·{' '}
                           {new Date(e.date).toLocaleTimeString('zh-HK', {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -728,6 +745,11 @@ export default function HomePage({
               ))
             )}
           </motion.div>
+
+      <WaterGoalSheet
+        open={goalSheetOpen}
+        onClose={() => setGoalSheetOpen(false)}
+      />
     </div>
   )
 }

@@ -26,7 +26,7 @@ import {
 } from '../lib/db'
 import { effectiveTarget } from '../lib/nutrition'
 import { dayStartMinutes, getDayStart, logDayKey } from '../lib/day'
-import { inferMealType, MEAL_LABELS, type MealType } from '../lib/image'
+import { inferMealType } from '../lib/image'
 import {
   fmtAmount,
   generateCookRoast,
@@ -145,7 +145,6 @@ export default function MealPlannerPage({
   // Log sheet
   const [logRecipe, setLogRecipe] = useState<Recipe | null>(null)
   const [logPortions, setLogPortions] = useState(1)
-  const [logMeal, setLogMeal] = useState<MealType>(() => inferMealType())
   const [roastOn, setRoastOn] = useState(false)
   const [roastText, setRoastText] = useState<string | null>(null)
   const [roastLoading, setRoastLoading] = useState(false)
@@ -522,7 +521,6 @@ export default function MealPlannerPage({
   function openLog(recipe: Recipe): void {
     setLogRecipe(recipe)
     setLogPortions(1)
-    setLogMeal(inferMealType())
     setRoastOn(false)
     setRoastText(null)
     setLogError(null)
@@ -605,7 +603,7 @@ export default function MealPlannerPage({
         carbsG: totals.carbsG,
         fatG: totals.fatG,
         servingSize: `${logPortions} 份`,
-        mealType: logMeal,
+        mealType: inferMealType(),
         date: now,
         createdAt: now,
         imagePath: null,
@@ -1597,23 +1595,6 @@ export default function MealPlannerPage({
               即係約 {Math.round(logRecipe.calories * logPortions)} kcal ·
               蛋白質約 {round1(logRecipe.proteinG * logPortions)}g
             </p>
-            <p className="mt-4 text-sm font-bold text-white/70">邊餐？</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(['breakfast', 'lunch', 'dinner'] as MealType[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setLogMeal(m)}
-                  className={`pressable min-h-[48px] rounded-full px-5 py-2.5 text-sm font-bold ${
-                    logMeal === m
-                      ? 'glass-cta-amber text-white'
-                      : 'glass-subcard text-white/80'
-                  }`}
-                >
-                  {MEAL_LABELS[m]}
-                </button>
-              ))}
-            </div>
             <button
               type="button"
               onClick={() => void onToggleRoast(!roastOn)}

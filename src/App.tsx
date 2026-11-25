@@ -37,7 +37,7 @@ import AddSheet, { type SheetView } from './pages/AddSheet'
 type Tab = 'home' | 'records' | 'meal' | 'progress' | 'settings'
 
 interface ScanFlow {
-  mode: 'food' | 'label' | 'text'
+  mode: 'food' | 'label'
   initialFile: File | null
 }
 
@@ -436,26 +436,23 @@ export default function App() {
         open={sheetOpen}
         initialView={sheetView}
         onClose={() => setSheetOpen(false)}
-        onScanFile={(file) => {
+        onScanFile={(file, mode = 'food') => {
           setSheetOpen(false)
           setCurrentEntryId(null)
-          setScanFlow({ mode: 'food', initialFile: file })
-        }}
-        onScanText={() => {
-          setSheetOpen(false)
-          setCurrentEntryId(null)
-          setScanFlow({ mode: 'text', initialFile: null })
-        }}
-        onScanLabel={() => {
-          setSheetOpen(false)
-          setCurrentEntryId(null)
-          setScanFlow({ mode: 'label', initialFile: null })
+          setScanFlow({ mode, initialFile: file })
         }}
         onOpenExercise={() => {
           setSheetOpen(false)
           setExerciseOpen(true)
         }}
         onDone={showToast}
+        profile={profile}
+        visionConfig={vision}
+        tonePrompt={tonePrompt}
+        onTextScanned={(id) => {
+          setSheetOpen(false)
+          setCurrentEntryId(id)
+        }}
       />
 
       {toast && (

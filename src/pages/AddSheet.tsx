@@ -1,8 +1,12 @@
 // Add sheet — 統一新增入口，照原 app「又食嘢？揀個方法認罪」
 // 9 格：影相 / 搜尋 / 掃描 / 上載 / 收藏 / 打字 / 運動 / 飲水 / 上磅
 // （2026-11-24：九宮格用 @phosphor-icons/react weight="fill" 實心圖示，
-// 嚴禁 Emoji。掃描 = 影營養標籤（ScanPage label 模式）；運動開兩步
-// 記運動頁；飲水開三格轉盤彈窗；上磅開電子磅＋刻度尺彈窗。）
+// 嚴禁 Emoji。運動開兩步記運動頁；飲水開三格轉盤彈窗；上磅開電子磅
+// ＋刻度尺彈窗。2026-11-25：掃描唔再經 ScanPage 標籤中間頁，撳落去
+// 直接開相機（capture="environment"），相片連 mode 'label' 交去 App，
+// ScanPage 收到有相＋label 模式就直接讀營養標籤；影相／上載照舊
+// mode 'food'。打字唔再跳去 ScanPage 全頁，喺呢張 sheet 入面開
+// 快入彈窗，經共用 runTextScan 行同一條打字估算流程。）
 // 影相 / 上載用 <label> 包住隱藏 file input，撳落去直接開相機／相簿。
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -20,10 +24,18 @@ import {
   Grains,
   Leaf,
   Orange,
+  PencilSimple,
 } from '@phosphor-icons/react'
-import { db, type FoodComponent, type FoodEntry, type SavedFood } from '../lib/db'
+import {
+  db,
+  type FoodComponent,
+  type FoodEntry,
+  type SavedFood,
+  type UserProfile,
+  type VisionProviderConfig,
+} from '../lib/db'
 import { inferMealType, type MealType } from '../lib/image'
-import { GlassModal } from '../components/ui'
+import { GlassButton, GlassModal } from '../components/ui'
 import {
   BarcodeSilhouetteIcon,
   BookmarkSilhouetteIcon,
@@ -37,25 +49,30 @@ import {
 } from '../components/icons'
 import { NutrientIcon, NutrientMini } from '../components/nutrients'
 import { macrosForGrams, searchFoods, type LocalFoodItem } from '../lib/foodDb'
+import { runTextScan } from './textScan'
 import WaterPanel from './WaterPanel'
 import WeightPanel from './WeightPanel'
 
-export type SheetView = 'menu' | 'search' | 'saved' | 'water' | 'weigh'
+export type SheetView = 'menu' | 'search' | 'saved' | 'water' | 'weigh' | 'text'
 
 interface Props {
   open: boolean
   initialView: SheetView
   onClose: () => void
-  /** A photo file picked from the sheet — App opens ScanPage with it. */
-  onScanFile: (file: File) => void
-  /** Text-only mode — App opens ScanPage in 打字 mode. */
-  onScanText: () => void
-  /** Label mode — App opens ScanPage in 影營養標籤 mode. */
-  onScanLabel: () => void
+  /** A photo file picked from the sheet — App opens ScanPage with it,
+   *  in the given mode ('food' for 影相／上載， 'label' for 掃描 —
+   *  label 模式行營養標籤 OCR prompt，唔係食物相估算）。 */
+  onScanFile: (file: File, mode?: 'food' | 'label') => void
   /** Two-step log-exercise page — App opens ExercisePage. */
   onOpenExercise: () => void
   /** Toast message after a successful quick add. */
   onDone: (msg: string) => void
+  /** Text-scan needs these (same inputs ScanPage gets from App). */
+  profile: UserProfile
+  visionConfig: VisionProviderConfig
+  tonePrompt: string
+  /** 打字快入估算完成 — App 閂 sheet，開 ResultPage 睇結果。 */
+  onTextScanned: (entryId: string) => void
 }
 
 function round1(n: number): number {
@@ -111,25 +128,30 @@ type SearchRow =
   | { kind: 'logged'; entry: FoodEntry }
   | { kind: 'saved'; food: SavedFood }
 
-const MEAL_LABELS: Array<{ id: MealType; label: string }> = [
-  { id: 'breakfast', label: '早餐' },
-  { id: 'lunch', label: '午餐' },
-  { id: 'dinner', label: '晚餐' },
-]
-
 export default function AddSheet({
   open,
   initialView,
   onClose,
   onScanFile,
-  onScanText,
-  onScanLabel,
   onOpenExercise,
   onDone,
+  profile,
+  visionConfig,
+  tonePrompt,
+  onTextScanned,
 }: Props) {
   const [view, setView] = useState<SheetView>(initialView)
   const cameraRef = useRef<HTMLInputElement>(null)
+  const labelCameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
+
+  // 打字快入彈窗（text view）——語氣／地區唔喺度顯示，runTextScan
+  // 喺背後照舊用 tonePrompt＋hk。2026-11-25：早／午／晚餐類型取消，
+  // 唔再問邊餐。
+  const [textDesc, setTextDesc] = useState('')
+  const [textScanning, setTextScanning] = useState(false)
+  const [textError, setTextError] = useState<string | null>(null)
+  const [textProgress, setTextProgress] = useState<string | null>(null)
 
   // Search view
   const [searchQuery, setSearchQuery] = useState('')
@@ -140,7 +162,6 @@ export default function AddSheet({
   const [adjust, setAdjust] = useState<SearchRow | null>(null)
   const [grams, setGrams] = useState('100')
   const [servings, setServings] = useState(1)
-  const [meal, setMeal] = useState<MealType>(() => inferMealType())
 
   // 收藏清單好細，拎晒返嚟喺 JS 排返新到舊 — saved_foods 只有 id 索引，
   // 用 orderBy('createdAt') 會令 Dexie 擲 SchemaError，成個 app 黑屏。
@@ -148,6 +169,108 @@ export default function AddSheet({
     const all = await db.saved_foods.toArray()
     return all.sort((a, b) => b.createdAt - a.createdAt)
   }, [])
+
+  // 2026-11-25 收藏 Library：搵名＋排序＋編輯／刪除。搜尋係名嘅
+  // substring；「最常食」按 food_entries 記過嘅次數排。
+  type SavedSort = 'newest' | 'frequent' | 'calAsc' | 'calDesc'
+  const [savedQuery, setSavedQuery] = useState('')
+  const [savedSort, setSavedSort] = useState<SavedSort>('newest')
+  const [editingSaved, setEditingSaved] = useState<SavedFood | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editServing, setEditServing] = useState('')
+  const [editCalories, setEditCalories] = useState('')
+  const [editProtein, setEditProtein] = useState('')
+  const [editCarbs, setEditCarbs] = useState('')
+  const [editFat, setEditFat] = useState('')
+  const [editSugar, setEditSugar] = useState('')
+  const [editFiber, setEditFiber] = useState('')
+  const [editSodium, setEditSodium] = useState('')
+  const [confirmDeleteSaved, setConfirmDeleteSaved] = useState(false)
+
+  function openEditSaved(f: SavedFood) {
+    setEditingSaved(f)
+    setEditName(f.name)
+    setEditServing(f.servingSize)
+    setEditCalories(String(f.calories))
+    setEditProtein(String(f.proteinG))
+    setEditCarbs(String(f.carbsG))
+    setEditFat(String(f.fatG))
+    setEditSugar(String(f.sugarG ?? 0))
+    setEditFiber(String(f.fiberG ?? 0))
+    setEditSodium(String(f.sodiumMg ?? 0))
+    setConfirmDeleteSaved(false)
+  }
+
+  /** 收藏編輯「儲存」：數字欄留空／打錯字 = 沿用舊值，唔會清零。
+   * 營養總數有改就按新總數起返單項食材清單（舊嘅多項分解唔再
+   * 啱數，留返會令記餐嗰陣總數同成分對唔上）；只改名／份量就
+   * 保留原有食材分解。 */
+  async function saveEditSaved() {
+    if (!editingSaved) return
+    const f = editingSaved
+    const num = (v: string, fallback: number) => {
+      const n = Number(v)
+      return Number.isFinite(n) && n >= 0 ? n : fallback
+    }
+    const calories = Math.round(num(editCalories, f.calories))
+    const proteinG = round1(num(editProtein, f.proteinG))
+    const carbsG = round1(num(editCarbs, f.carbsG))
+    const fatG = round1(num(editFat, f.fatG))
+    const sugarG = round1(num(editSugar, f.sugarG ?? 0))
+    const fiberG = round1(num(editFiber, f.fiberG ?? 0))
+    const sodiumMg = Math.round(num(editSodium, f.sodiumMg ?? 0))
+    const totalsChanged =
+      calories !== f.calories ||
+      proteinG !== f.proteinG ||
+      carbsG !== f.carbsG ||
+      fatG !== f.fatG ||
+      sugarG !== (f.sugarG ?? 0) ||
+      fiberG !== (f.fiberG ?? 0) ||
+      sodiumMg !== (f.sodiumMg ?? 0)
+    const edited: SavedFood = {
+      ...f,
+      name: editName.trim() || f.name,
+      servingSize: editServing.trim(),
+      calories,
+      proteinG,
+      carbsG,
+      fatG,
+      sugarG,
+      fiberG,
+      sodiumMg,
+    }
+    await db.saved_foods.update(f.id, {
+      name: edited.name,
+      servingSize: edited.servingSize,
+      calories,
+      proteinG,
+      carbsG,
+      fatG,
+      sugarG,
+      fiberG,
+      sodiumMg,
+      componentsJson: totalsChanged
+        ? savedFallbackComponentsJson(edited)
+        : f.componentsJson,
+    })
+    setEditingSaved(null)
+    onDone(`已更新「${editName.trim() || f.name}」`)
+  }
+
+  /** 收藏「刪除」兩撳確認：第一撳變紅字「撳多次確認刪除」，第二撳先
+   * 真係刪——唔會一唔小心碌到就冇咗。 */
+  async function deleteSaved() {
+    if (!editingSaved) return
+    if (!confirmDeleteSaved) {
+      setConfirmDeleteSaved(true)
+      return
+    }
+    const name = editingSaved.name
+    await db.saved_foods.delete(editingSaved.id)
+    setEditingSaved(null)
+    setConfirmDeleteSaved(false)
+    onDone(`已刪除「${name}」`)
+  }
 
   // 搜尋分頁用嘅已記食物 — 同樣拎晒返嚟喺 JS 排（food_entries 只有
   // id 索引，用 orderBy 會黑屏）。
@@ -196,6 +319,37 @@ export default function AddSheet({
       .map((v) => ({ kind: 'logged', entry: v.entry }) as SearchRow)
   }, [sortedEntries])
 
+  // 收藏 Library 篩選＋排序——放喺 sortedEntries 之後（useMemo 回調
+  // 即刻執行，前面引用 sortedEntries 會撞 TDZ）。
+  const savedFreq = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const e of sortedEntries) {
+      counts.set(e.name, (counts.get(e.name) ?? 0) + 1)
+    }
+    return counts
+  }, [sortedEntries])
+
+  const filteredSaved = useMemo(() => {
+    const q = savedQuery.trim().toLowerCase()
+    const list = (savedFoods ?? []).filter(
+      (f) => !q || f.name.toLowerCase().includes(q),
+    )
+    switch (savedSort) {
+      case 'frequent':
+        return [...list].sort(
+          (a, b) =>
+            (savedFreq.get(b.name) ?? 0) - (savedFreq.get(a.name) ?? 0) ||
+            b.createdAt - a.createdAt,
+        )
+      case 'calAsc':
+        return [...list].sort((a, b) => a.calories - b.calories)
+      case 'calDesc':
+        return [...list].sort((a, b) => b.calories - a.calories)
+      default:
+        return list
+    }
+  }, [savedFoods, savedQuery, savedSort, savedFreq])
+
   useEffect(() => {
     if (open) {
       setView(initialView)
@@ -203,14 +357,47 @@ export default function AddSheet({
       setSearchTab('all')
       setSearchResults([])
       setAdjust(null)
+      setTextDesc('')
+      setTextError(null)
+      setTextProgress(null)
+      setTextScanning(false)
+      setSavedQuery('')
+      setSavedSort('newest')
+      setEditingSaved(null)
+      setConfirmDeleteSaved(false)
     }
   }, [open, initialView])
 
   if (!open) return null
 
-  function onPickFile(f: File | undefined) {
+  function onPickFile(f: File | undefined, mode: 'food' | 'label' = 'food') {
     if (!f) return
-    onScanFile(f)
+    onScanFile(f, mode)
+  }
+
+  /** 打字快入「用文字估算」：同 ScanPage 打字模式同一條流程
+   *  （runTextScan），成功就閂 sheet、App 開 ResultPage；失敗留喺
+   *  彈窗顯示錯誤，唔跳頁。 */
+  async function submitText() {
+    if (textScanning || !textDesc.trim()) return
+    setTextScanning(true)
+    setTextError(null)
+    setTextProgress(null)
+    try {
+      const id = await runTextScan({
+        description: textDesc.trim(),
+        profile,
+        tonePrompt,
+        visionConfig,
+        onProgress: setTextProgress,
+      })
+      onTextScanned(id)
+    } catch (e) {
+      setTextError(e instanceof Error ? e.message : '估算失敗，請再試一次。')
+    } finally {
+      setTextScanning(false)
+      setTextProgress(null)
+    }
   }
 
   async function addEntry(e: {
@@ -324,7 +511,6 @@ export default function AddSheet({
     setAdjust(row)
     setGrams('100')
     setServings(1)
-    setMeal(inferMealType())
   }
 
   /** 調整面板「加入」：離線庫按克數，已記／收藏按份數。 */
@@ -341,7 +527,7 @@ export default function AddSheet({
         carbsG: m.carbsG,
         fatG: m.fatG,
         servingSize: `約${grams}克`,
-        mealType: meal,
+        mealType: inferMealType(),
       })
       return
     }
@@ -384,7 +570,7 @@ export default function AddSheet({
       sodiumMg: base.sodiumMg * servings,
       servingSize: `${servings} × ${base.servingSize || '1份'}`,
       componentsJson: base.componentsJson,
-      mealType: meal,
+      mealType: inferMealType(),
     })
   }
 
@@ -416,6 +602,7 @@ export default function AddSheet({
     saved: '收藏食物',
     water: '飲咗邊樽？',
     weigh: '上磅',
+    text: '打字記低食咗咩',
   }
 
   /** 九宮格一格：深色暖黑圓底＋琥珀金剪影＋名。 */
@@ -546,14 +733,24 @@ export default function AddSheet({
               accept="image/*"
               capture="environment"
               className="hidden"
-              onChange={(e) => onPickFile(e.target.files?.[0])}
+              onChange={(e) => onPickFile(e.target.files?.[0], 'food')}
+            />
+            {/* 掃描專用相機 input——同影相一樣直接開相機，但相片
+                以 mode 'label' 交去 App，行營養標籤 OCR prompt。 */}
+            <input
+              ref={labelCameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => onPickFile(e.target.files?.[0], 'label')}
             />
             <input
               ref={galleryRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => onPickFile(e.target.files?.[0])}
+              onChange={(e) => onPickFile(e.target.files?.[0], 'food')}
             />
             <div className="mt-4 grid grid-cols-3 gap-3">
               <GridTile
@@ -565,7 +762,10 @@ export default function AddSheet({
               <GridTile label="搜尋" onClick={() => setView('search')}>
                 <SearchSilhouetteIcon size={28} className="text-[#FF9F0A]" />
               </GridTile>
-              <GridTile label="掃描" onClick={onScanLabel}>
+              <GridTile
+                label="掃描"
+                onClick={() => labelCameraRef.current?.click()}
+              >
                 <BarcodeSilhouetteIcon size={28} className="text-[#FF9F0A]" />
               </GridTile>
               <GridTile
@@ -580,7 +780,7 @@ export default function AddSheet({
                   className="text-[#FF9F0A]"
                 />
               </GridTile>
-              <GridTile label="打字" onClick={onScanText}>
+              <GridTile label="打字" onClick={() => setView('text')}>
                 <KeyboardSilhouetteIcon
                   size={28}
                   className="text-[#FF9F0A]"
@@ -600,6 +800,40 @@ export default function AddSheet({
               個人版，冇收費、冇配額，想記幾多次都得。
             </p>
           </>
+        )}
+
+        {view === 'text' && (
+          <div className="mt-3">
+            <label className="block text-sm font-bold text-white/60">
+              食咗咩？
+            </label>
+            <textarea
+              value={textDesc}
+              onChange={(e) => setTextDesc(e.target.value)}
+              placeholder="例如：叉燒飯一碟，加凍檸茶"
+              rows={3}
+              autoFocus
+              className="glass-input mt-1 resize-none"
+            />
+            <GlassButton
+              variant="amber"
+              disabled={textScanning || !textDesc.trim()}
+              onClick={submitText}
+              className="pressable mt-4 w-full rounded-2xl py-3 text-lg"
+            >
+              {textScanning ? '分析緊…請稍候' : '用文字估算'}
+            </GlassButton>
+            {textError && (
+              <p className="mt-3 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-300">
+                {textError}
+              </p>
+            )}
+            {textScanning && textProgress && (
+              <p className="mt-3 text-center text-sm text-white/50">
+                {textProgress}
+              </p>
+            )}
+          </div>
         )}
 
         {view === 'search' && (
@@ -721,22 +955,6 @@ export default function AddSheet({
                     </button>
                   </div>
                 )}
-                <div className="mt-2 grid grid-cols-3 gap-1 rounded-2xl bg-black/25 p-1">
-                  {MEAL_LABELS.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setMeal(m.id)}
-                      className={`pressable rounded-xl py-2 text-sm font-bold ${
-                        meal === m.id
-                          ? 'bg-[#FF9F0A]/25 text-[#FF9F0A]'
-                          : 'text-white/50'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="inline-flex items-center gap-1 font-bold">
                     <NutrientIcon nutrient="calories" size={15} />
@@ -804,67 +1022,208 @@ export default function AddSheet({
                 未收藏任何食物 — 去結果頁撳「收藏呢餐」就得。
               </p>
             )}
-            <ul className="space-y-2">
-              {(savedFoods ?? []).map((f) => (
-                <li key={f.id} className="rounded-2xl glass-subcard p-4">
+            {(savedFoods ?? []).length > 0 && (
+              <>
+                <input
+                  type="text"
+                  value={savedQuery}
+                  onChange={(e) => setSavedQuery(e.target.value)}
+                  placeholder="搵收藏…"
+                  className="glass-input"
+                />
+                <div className="mt-2 flex gap-1 overflow-x-auto">
+                  {(
+                    [
+                      { id: 'newest', label: '最新' },
+                      { id: 'frequent', label: '最常食' },
+                      { id: 'calAsc', label: '卡路里 ↑' },
+                      { id: 'calDesc', label: '卡路里 ↓' },
+                    ] as Array<{ id: SavedSort; label: string }>
+                  ).map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSavedSort(s.id)}
+                      className={`pressable shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
+                        savedSort === s.id
+                          ? 'bg-[#FF9F0A]/25 text-[#FF9F0A]'
+                          : 'bg-white/[0.06] text-white/50'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {editingSaved && (
+              <div className="mt-3 rounded-2xl bg-[#FF9F0A]/10 p-3 ring-1 ring-[#FF9F0A]/30">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold">編輯收藏</p>
                   <button
                     type="button"
-                    onClick={() => addSaved(f)}
-                    className="pressable block w-full text-left"
+                    onClick={() => setEditingSaved(null)}
+                    aria-label="取消編輯"
+                    className="pressable px-1 text-white/50"
                   >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#17140F] ring-1 ring-white/10">
-                          <BowlFood
-                            size={22}
-                            weight="fill"
-                            className="text-[#FF9F0A]"
-                          />
+                    ✕
+                  </button>
+                </div>
+                <label className="mt-2 block text-xs font-bold text-white/50">
+                  名稱
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="glass-input mt-1"
+                />
+                <label className="mt-2 block text-xs font-bold text-white/50">
+                  份量
+                </label>
+                <input
+                  type="text"
+                  value={editServing}
+                  onChange={(e) => setEditServing(e.target.value)}
+                  placeholder="例如：1份"
+                  className="glass-input mt-1"
+                />
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { label: '卡路里', unit: 'kcal', value: editCalories, set: setEditCalories },
+                      { label: '蛋白質', unit: 'g', value: editProtein, set: setEditProtein },
+                      { label: '碳水', unit: 'g', value: editCarbs, set: setEditCarbs },
+                      { label: '脂肪', unit: 'g', value: editFat, set: setEditFat },
+                      { label: '糖', unit: 'g', value: editSugar, set: setEditSugar },
+                      { label: '纖維', unit: 'g', value: editFiber, set: setEditFiber },
+                      { label: '鈉', unit: 'mg', value: editSodium, set: setEditSodium },
+                    ] as Array<{
+                      label: string
+                      unit: string
+                      value: string
+                      set: (v: string) => void
+                    }>
+                  ).map((f) => (
+                    <label key={f.label} className="block">
+                      <span className="text-xs font-bold text-white/50">
+                        {f.label}（{f.unit}）
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={f.value}
+                        onChange={(e) => f.set(e.target.value)}
+                        className="glass-input mt-1"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <GlassButton
+                  variant="amber"
+                  onClick={saveEditSaved}
+                  className="pressable mt-3 w-full rounded-xl py-2.5 font-bold"
+                >
+                  儲存
+                </GlassButton>
+                <button
+                  type="button"
+                  onClick={deleteSaved}
+                  className={`pressable mt-2 w-full rounded-xl py-2.5 text-sm font-bold ${
+                    confirmDeleteSaved
+                      ? 'bg-red-500/25 text-red-300'
+                      : 'bg-white/[0.06] text-red-400/80'
+                  }`}
+                >
+                  {confirmDeleteSaved ? '撳多次確認刪除' : '刪除收藏'}
+                </button>
+              </div>
+            )}
+            {(savedFoods ?? []).length > 0 && (
+              <p className="mt-3 text-xs text-white/40">
+                共 {filteredSaved.length} 樣
+                {savedQuery.trim() &&
+                  filteredSaved.length === 0 &&
+                  ` — 搵唔到「${savedQuery.trim()}」`}
+              </p>
+            )}
+            {filteredSaved.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {filteredSaved.map((f) => (
+                  <li key={f.id} className="rounded-2xl glass-subcard p-4">
+                    <button
+                      type="button"
+                      onClick={() => addSaved(f)}
+                      className="pressable block w-full text-left"
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#17140F] ring-1 ring-white/10">
+                            <BowlFood
+                              size={22}
+                              weight="fill"
+                              className="text-[#FF9F0A]"
+                            />
+                          </span>
+                          <span className="min-w-0 truncate font-bold">
+                            {f.name}
+                          </span>
                         </span>
-                        <span className="min-w-0 truncate font-bold">
-                          {f.name}
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          <span className="text-xs text-white/50">1份</span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`編輯收藏 ${f.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openEditSaved(f)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                openEditSaved(f)
+                              }
+                            }}
+                            className="pressable flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.07] ring-1 ring-white/10"
+                          >
+                            <PencilSimple
+                              size={14}
+                              weight="fill"
+                              className="text-[#8FB8D8]"
+                            />
+                          </span>
                         </span>
                       </span>
-                      <span className="shrink-0 text-xs text-white/50">
-                        1份
+                      <span className="mt-2 flex items-center gap-1.5 text-xl font-bold">
+                        <NutrientIcon nutrient="calories" size={20} />
+                        {f.calories} 卡路里
                       </span>
-                    </span>
-                    <span className="mt-2 flex items-center gap-1.5 text-xl font-bold">
-                      <NutrientIcon nutrient="calories" size={20} />
-                      {f.calories} 卡路里
-                    </span>
-                    <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                      {f.proteinG > 0 && (
-                        <NutrientMini nutrient="proteinG" value={round1(f.proteinG)} />
-                      )}
-                      {f.carbsG > 0 && (
-                        <NutrientMini nutrient="carbsG" value={round1(f.carbsG)} />
-                      )}
-                      {f.fatG > 0 && (
-                        <NutrientMini nutrient="fatG" value={round1(f.fatG)} />
-                      )}
-                      {(f.sugarG ?? 0) > 0 && (
-                        <NutrientMini nutrient="sugarG" value={round1(f.sugarG ?? 0)} />
-                      )}
-                      {(f.fiberG ?? 0) > 0 && (
-                        <NutrientMini nutrient="fiberG" value={round1(f.fiberG ?? 0)} />
-                      )}
-                      {(f.sodiumMg ?? 0) > 0 && (
-                        <NutrientMini nutrient="sodiumMg" value={Math.round(f.sodiumMg ?? 0)} />
-                      )}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => db.saved_foods.delete(f.id)}
-                    className="pressable mt-1 text-xs font-bold text-white/30"
-                    aria-label={`刪除收藏 ${f.name}`}
-                  >
-                    刪除收藏
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                        {f.proteinG > 0 && (
+                          <NutrientMini nutrient="proteinG" value={round1(f.proteinG)} />
+                        )}
+                        {f.carbsG > 0 && (
+                          <NutrientMini nutrient="carbsG" value={round1(f.carbsG)} />
+                        )}
+                        {f.fatG > 0 && (
+                          <NutrientMini nutrient="fatG" value={round1(f.fatG)} />
+                        )}
+                        {(f.sugarG ?? 0) > 0 && (
+                          <NutrientMini nutrient="sugarG" value={round1(f.sugarG ?? 0)} />
+                        )}
+                        {(f.fiberG ?? 0) > 0 && (
+                          <NutrientMini nutrient="fiberG" value={round1(f.fiberG ?? 0)} />
+                        )}
+                        {(f.sodiumMg ?? 0) > 0 && (
+                          <NutrientMini nutrient="sodiumMg" value={Math.round(f.sodiumMg ?? 0)} />
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 

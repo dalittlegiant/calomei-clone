@@ -2,22 +2,22 @@
 // Replaces the old "+1 樽 / +250ml / 自訂" water view. Pick a bottle on
 // the three-sector wheel, fine-tune in 50 ml steps, confirm with the
 // teal glass CTA. The centre button opens the daily water-goal setting
-// （杯／毫升切換， ±1 杯， 500–5000 ml，存入 settings `water_goal_ml`）.
+// （共用 WaterGoalSheet，杯／毫升切換，杯模式 ±1 杯、毫升模式 ±100 ml，
+// 500–5000 ml，存入 settings `water_goal_ml`）.
 // Writes to the existing water_entries table; no schema change.
 
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { BeerBottle, Coffee, PencilSimple } from '@phosphor-icons/react'
-import { db, getSetting, setSetting } from '../lib/db'
-import { BOTTLE_ML, WATER_TARGET_ML } from '../lib/nutrition'
+import { db } from '../lib/db'
+import { BOTTLE_ML } from '../lib/nutrition'
 import { dayStartMinutes, getDayStart, todayLogStartMs } from '../lib/day'
-import { GlassButton, GlassModal } from '../components/ui'
+import { GlassButton } from '../components/ui'
+import WaterGoalSheet from './WaterGoalSheet'
 
 const CUP_ML = 250
 const BIG_ML = 1000
 const STEP_ML = 50
-const GOAL_MIN_ML = 500
-const GOAL_MAX_ML = 5000
 
 interface Props {
   onDone: (msg: string) => void
@@ -62,8 +62,6 @@ export default function WaterPanel({ onDone, onClose }: Props) {
   const [amount, setAmount] = useState(BOTTLE_ML)
   const [sector, setSector] = useState<Sector>('bottle')
   const [goalOpen, setGoalOpen] = useState(false)
-  const [goalMl, setGoalMl] = useState(WATER_TARGET_ML)
-  const [goalUnit, setGoalUnit] = useState<'cups' | 'ml'>('cups')
 
   const waterToday = useLiveQuery(
     () =>
@@ -77,7 +75,6 @@ export default function WaterPanel({ onDone, onClose }: Props) {
 
   useEffect(() => {
     getDayStart().then(setDayStart)
-    getSetting<number>('water_goal_ml', WATER_TARGET_ML).then(setGoalMl)
   }, [])
 
   function pickSector(s: (typeof SECTORS)[number]) {
@@ -109,15 +106,6 @@ export default function WaterPanel({ onDone, onClose }: Props) {
     if (!last) return
     await db.water_entries.delete(last.id)
   }
-
-  async function saveGoal() {
-    await setSetting('water_goal_ml', goalMl)
-    setGoalOpen(false)
-  }
-
-  const goalCups = Math.round(goalMl / CUP_ML)
-  const goalDisplay = goalUnit === 'cups' ? `${goalCups}` : `${goalMl.toLocaleString()}`
-  const goalUnitLabel = goalUnit === 'cups' ? '杯' : '毫升'
 
   return (
     <div>
@@ -267,70 +255,8 @@ export default function WaterPanel({ onDone, onClose }: Props) {
         </button>
       )}
 
-      {/* ---- daily goal dialog ---- */}
-      <GlassModal open={goalOpen} onClose={() => setGoalOpen(false)} variant="dialog">
-        <h3 className="text-center text-lg font-bold">每日飲水目標</h3>
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-black/25 p-1">
-          {(
-            [
-              { id: 'cups', label: '杯' },
-              { id: 'ml', label: '毫升' },
-            ] as const
-          ).map((u) => (
-            <button
-              key={u.id}
-              type="button"
-              onClick={() => setGoalUnit(u.id)}
-              className={`pressable rounded-xl py-2.5 font-bold ${
-                goalUnit === u.id
-                  ? 'bg-white/[0.12] text-white'
-                  : 'text-white/50'
-              }`}
-            >
-              {u.label}
-            </button>
-          ))}
-        </div>
-        <p className="mt-3 text-center text-sm text-white/50">
-          建議每日飲 6–10 杯水（每杯約 250ml）
-        </p>
-        <div className="mt-3 flex items-center justify-center gap-6">
-          <button
-            type="button"
-            onClick={() => setGoalMl((v) => Math.max(GOAL_MIN_ML, v - CUP_ML))}
-            disabled={goalMl <= GOAL_MIN_ML}
-            aria-label="減少目標"
-            className="pressable flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.06] text-2xl font-bold disabled:opacity-30"
-          >
-            −
-          </button>
-          <div className="w-20 text-center">
-            <p className="text-4xl font-bold tabular-nums text-[#2DD4BF]">
-              {goalDisplay}
-            </p>
-            <p className="mt-0.5 text-sm text-white/50">{goalUnitLabel}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setGoalMl((v) => Math.min(GOAL_MAX_ML, v + CUP_ML))}
-            disabled={goalMl >= GOAL_MAX_ML}
-            aria-label="增加目標"
-            className="pressable flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.06] text-2xl font-bold disabled:opacity-30"
-          >
-            ＋
-          </button>
-        </div>
-        <p className="mt-3 text-center text-xs text-white/40">
-          範圍：500 – 5000 毫升
-        </p>
-        <GlassButton
-          variant="teal"
-          onClick={saveGoal}
-          className="pressable mt-4 w-full rounded-2xl py-3 text-base"
-        >
-          確定
-        </GlassButton>
-      </GlassModal>
+      {/* ---- daily goal sheet (shared with the home water card) ---- */}
+      <WaterGoalSheet open={goalOpen} onClose={() => setGoalOpen(false)} />
     </div>
   )
 }

@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { motion } from 'motion/react'
-import { springPill } from '../motion/presets'
 import { db, getHealthShortcutName, type UserProfile } from '../lib/db'
-import { MEAL_LABELS, type MealType } from '../lib/image'
 import { isoDate, openHealthShortcut } from '../lib/health'
 import {
   BOTTLE_ML,
@@ -23,10 +20,7 @@ interface Props {
   onOpen: (entryId: string) => void
 }
 
-type Filter = 'all' | MealType
-
 export default function HistoryPage({ profile, onOpen }: Props) {
-  const [filter, setFilter] = useState<Filter>('all')
   const [dayStart, setDayStart] = useState('00:00')
 
   useEffect(() => {
@@ -112,9 +106,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
   const [logMsg, setLogMsg] = useState<string | null>(null)
 
   const groups = useMemo(() => {
-    const list = (entries ?? []).filter(
-      (e) => filter === 'all' || e.mealType === filter,
-    )
+    const list = entries ?? []
     const map = new Map<string, typeof list>()
     for (const e of list) {
       const key = logDayKey(e.date, startMin)
@@ -123,7 +115,7 @@ export default function HistoryPage({ profile, onOpen }: Props) {
       map.set(key, arr)
     }
     return [...map.entries()]
-  }, [entries, filter, startMin])
+  }, [entries, startMin])
 
   function dayLabel(key: string): string {
     const todayKey = logDayKey(Date.now(), startMin)
@@ -457,32 +449,6 @@ export default function HistoryPage({ profile, onOpen }: Props) {
         )}
       </GlassCard>
 
-      <div className="mt-4 flex gap-2">
-        {(['all', 'breakfast', 'lunch', 'dinner'] as Filter[]).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`pressable relative flex-1 rounded-xl py-2 text-sm font-bold ${
-              filter === f
-                ? 'text-white'
-                : 'glass-subcard text-white/60 ring-1 ring-white/15'
-            }`}
-          >
-            {filter === f && (
-              <motion.span
-                layoutId="history-filter-pill"
-                className="absolute inset-0 rounded-2xl glass-cta-amber"
-                transition={springPill}
-              />
-            )}
-            <span className="relative">
-              {f === 'all' ? '全部' : MEAL_LABELS[f]}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {groups.length === 0 && (
         <p className="mt-8 text-center text-white/40">
           仲未有案底 — 撳「又食嘢？加啦」認第一餐啦 🍽️
@@ -520,7 +486,6 @@ export default function HistoryPage({ profile, onOpen }: Props) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-bold">{e.name}</span>
                   <span className="block text-sm text-white/50">
-                    {MEAL_LABELS[e.mealType as MealType] ?? e.mealType} ·{' '}
                     {new Date(e.date).toLocaleTimeString('zh-HK', {
                       hour: '2-digit',
                       minute: '2-digit',

@@ -4,7 +4,6 @@
 // 份數縮放模型：base（1 份時嘅值）× multiplier = 顯示值；所有縮放都由 base
 // 重新計，唔會逐次累積誤差。
 import type { FoodComponent } from '../lib/db'
-import { MEAL_LABELS } from '../lib/image'
 
 export function round1(n: number): number {
   return Math.round(n * 10) / 10
@@ -81,13 +80,3 @@ export function fmtMultiplier(m: number): string {
   return String(Math.round(m * 100) / 100)
 }
 
-/** 餐類＋時間膠囊：「晚餐 · 8:32 PM」。 */
-export function fmtMealTime(mealType: string, dateMs: number): string {
-  const label =
-    MEAL_LABELS[mealType as keyof typeof MEAL_LABELS] ?? mealType
-  const time = new Date(dateMs).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  return `${label} · ${time}`
-}
