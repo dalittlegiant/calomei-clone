@@ -144,18 +144,14 @@ export default function HomePage({
   const startMin = dayStartMinutes(dayStart)
   const todayKey = logDayKey(Date.now(), startMin)
 
-  // Feed window: only the latest N log days are loaded (default 30) —
+  // Feed window: only the 7 log days the date strip can show are loaded —
   // loading every photo data URL at once bloats memory and the DOM after
-  // a few hundred meals. 「載入更多」 extends the window by 30 days.
-  const [feedDays, setFeedDays] = useState(30)
-  const feedCutoffKey = useMemo(
-    () => shiftLogDay(todayKey, -(feedDays - 1)),
-    [todayKey, feedDays],
-  )
+  // a few hundred meals. The feed itself shows one day only (2026-11-25:
+  // default today, pick a date to see that day).
   const feedWindowStartMs = useMemo(() => {
-    const [y, m, d] = feedCutoffKey.split('-').map(Number)
+    const [y, m, d] = shiftLogDay(todayKey, -6).split('-').map(Number)
     return new Date(y, m - 1, d).getTime() + startMin * 60_000
-  }, [feedCutoffKey, startMin])
+  }, [todayKey, startMin])
   const entries = useLiveQuery(
     () =>
       db.food_entries
@@ -163,10 +159,6 @@ export default function HomePage({
         .aboveOrEqual(feedWindowStartMs)
         .toArray()
         .then((rows) => rows.reverse()),
-    [feedWindowStartMs],
-  )
-  const olderCount = useLiveQuery(
-    () => db.food_entries.where('date').below(feedWindowStartMs).count(),
     [feedWindowStartMs],
   )
   const override = useLiveQuery(
@@ -280,8 +272,10 @@ export default function HomePage({
   )
 
   const feedGroups = useMemo(() => {
+    // One day only: the day on screen (default today). Picking a date in
+    // the strip swaps the whole feed to that day (2026-11-25).
     const list = (entries ?? []).filter(
-      (e) => !selectedDay || logDayKey(e.date, startMin) === selectedDay,
+      (e) => logDayKey(e.date, startMin) === viewKey,
     )
     const map = new Map<string, typeof list>()
     for (const e of list) {
@@ -291,7 +285,7 @@ export default function HomePage({
       map.set(key, arr)
     }
     return [...map.entries()]
-  }, [entries, selectedDay, startMin])
+  }, [entries, viewKey, startMin])
 
   function dayLabel(key: string): string {
     if (key === todayKey) return '今日'
@@ -633,15 +627,15 @@ export default function HomePage({
           {/* 案底 feed — 跟住 2-slide 板下面，單欄。 */}
           <div className="mt-6 flex items-baseline justify-between">
             <h2 className="text-lg font-bold">
-              案底{selectedDay ? ` · ${dayLabel(selectedDay)}` : ''}
+              案底 · {dayLabel(viewKey)}
             </h2>
-            {selectedDay && (
+            {viewKey !== todayKey && (
               <button
                 type="button"
                 onClick={() => setSelectedDay(null)}
                 className="pressable text-sm font-bold text-[#FF9F0A]"
               >
-                睇返全部
+                返回今日
               </button>
             )}
           </div>
@@ -655,7 +649,9 @@ export default function HomePage({
           >
             {feedGroups.length === 0 ? (
               <p className="glass-inset mt-3 p-6 text-center text-sm text-white/50">
-                仲未有案底 — 撳「又食嘢？加啦」認第一餐啦
+                {viewKey === todayKey
+                  ? '仲未有案底 — 撳「又食嘢？加啦」認第一餐啦'
+                  : '呢日未記過嘢'}
               </p>
             ) : (
               feedGroups.map(([key, list]) => (
@@ -732,16 +728,6 @@ export default function HomePage({
               ))
             )}
           </motion.div>
-
-          {!selectedDay && (olderCount ?? 0) > 0 && (
-            <button
-              type="button"
-              onClick={() => setFeedDays((d) => d + 30)}
-              className="glass-subcard pressable mt-4 w-full py-3 text-center font-bold text-[#FF9F0A]"
-            >
-              載入更多（仲有 {olderCount} 餐）
-            </button>
-          )}
     </div>
   )
 }

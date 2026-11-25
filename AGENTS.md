@@ -121,6 +121,14 @@
 > 超上限先變紅）、數值改放下面「值／目標」；大火焰圓環中間嘅
 > 舊 `FlameIcon`（Lucide 線條）換埋 `NutrientIcon` calories。
 
+> 2026-11-25（案底 Feed 只顯示一日）：Kong 要求主頁案底預設只顯示
+> 今日，撳日期先換去嗰日。`HomePage.tsx` 嘅 `feedGroups` 改用
+> `viewKey`（即 `selectedDay ?? todayKey`）過濾；標題恆常顯示
+> 「案底 · {dayLabel}」；非今日嗰日顯示「返回今日」掣（取代舊
+> 「睇返全部」）；無記錄嗰日顯示「呢日未記過嘢」；「載入更多」同
+> `olderCount` 查詢刪除，Dexie 窗口由 30 日收窄到日期列 7 日。
+> 記錄頁（HistoryPage）唔郁——佢本身就係用嚟睇晒所有日子。
+
 ## 主頁捲動（2026-11-23，Kong 定案）
 
 - 主頁頂部 header（`App.tsx`）同日期列（`HomePage.tsx` week strip）**刻意
